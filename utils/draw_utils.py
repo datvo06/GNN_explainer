@@ -81,7 +81,7 @@ def draw_text(img, x, y, w, h, text, color=(0, 0, 0),
                 character, font=get_used_font(),
                 fill=(
                     tuple(
-                        [int(color_elem*0.5*(1-importances[i]))
+                        [int(127-0.5*color_elem*(importances[i]))
                          for color_elem in color])
                 ),
                 )
@@ -155,6 +155,34 @@ def draw_nodes(img, list_texts, list_bboxs, node_labels,
                                bow_dict, bow_importances)
 
 
+def draw_edges(img, list_bboxs, adj_mats, adj_importances_mask):
+    """
+    Args:
+        img: input opencv image to be drawn on
+        list_bboxs: list of (x, y, w, h)
+        adj_mats: (N, N, D)
+    """
+    img = img.copy()
+    list_bboxs = np.array(list_bboxs)
+    bbox_centers = np.hstack(
+        ((list_bboxs[:, 0] + list_bboxs[:, 2])/2,
+         (list_bboxs[:, 1] + list_bboxs[:, 3])/2))
+    # Loop through every node
+    for i, bbox in enumerate(list_bboxs):
+        for k in range(int(adj_mats.shape[-1]/2)):
+            list_j = np.argwhere(adj_mats[i, :, 2*k] != 0)
+            for j in list_j:
+                img = draw_arrow(
+                    img,
+                    bbox_centers[i][0], bbox_centers[i][1],
+                    bbox_centers[j][0], bbox_centers[j][1],
+                    get_colors_list_edges()[
+                        k % len(get_colors_list_edges())],
+                    2.5*(adj_importances_mask[2*k] +
+                         adj_importances_mask[2*k+1]))
+    return img
+
+
 def visualize_graph(list_bows, list_positions,
                     adj_mats, node_labels,
                     node_importances,
@@ -185,7 +213,10 @@ def visualize_graph(list_bows, list_positions,
     else:
         img = orig_img.copy()
     # first, draw the nodes
-    draw_nodes(img, list_texts, list_positions,
+    img = draw_nodes(img, list_texts, list_positions,
                node_labels, node_importances, position_importances,
                bow_importances, bow_dict)
+    # then, draw the edges
+    img = draw_edges(img, list_positions, adj_mats,
+                     adj_importances)
     return img
