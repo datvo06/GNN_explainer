@@ -115,6 +115,9 @@ class Explainer:
             graph_idx=self.graph_idx,
             graph_mode=self.graph_mode,
         )
+        # The explainer is used to create and maintain the masks
+        # otherwise it will not interferes with model's prediction
+        # This means that we may use basically anything
         if self.args.gpu:
             explainer = explainer.cuda()
 
@@ -705,6 +708,7 @@ class ExplainModule(nn.Module):
     def forward(self, node_idx, unconstrained=False, mask_features=True, marginalize=False):
         """
         Args:
+            node_idx: the chosen node's label to be explained
         """
         x = self.x.cuda() if self.args.gpu else self.x
 
@@ -780,6 +784,9 @@ class ExplainModule(nn.Module):
             mask = torch.sigmoid(self.mask)
         elif self.mask_act == "ReLU":
             mask = nn.ReLU()(self.mask)
+        # Size loss will make the mask as small as possible
+        # in conjunction with the CE bellow, it will draw the mask towards
+        # 0, unless the prediction loss pull it back
         size_loss = self.coeffs["size"] * torch.sum(mask)
 
         # pre_mask_sum = torch.sum(self.feat_mask)
@@ -789,9 +796,15 @@ class ExplainModule(nn.Module):
         feat_size_loss = self.coeffs["feat_size"] * torch.mean(feat_mask)
 
         # entropy
+        # This loss is designed to keep the mask as separated (either dense or
+        # sparse as possible
+        # if mask element ~ 1 i.e, 0.99: loss = ~0 - ~0 = 0
+        # if mask element ~0 i.e, 0.01: loss = ~0 - 0 = 0
+        # else, if mask element 0.5, loss = -log(0.5) = log(2) (maximum value)
         mask_ent = -mask * torch.log(mask) - (1 - mask) * torch.log(1 - mask)
         mask_ent_loss = self.coeffs["ent"] * torch.mean(mask_ent)
 
+        # The same for feat mask entropy
         feat_mask_ent = - feat_mask             \
                         * torch.log(feat_mask)  \
                         - (1 - feat_mask)       \
@@ -810,6 +823,7 @@ class ExplainModule(nn.Module):
         if self.graph_mode:
             lap_loss = 0
         else:
+            # @ is the matrix multiplication
             lap_loss = (self.coeffs["lap"]
                 * (pred_label_t @ L @ pred_label_t)
                 / self.adj.numel()
