@@ -17,7 +17,7 @@ for i in range(1, 12, 2):
 
 def get_used_font(top_height):
     i = 0
-    while(top_height < fonts[i].font.height):
+    while(top_height < fonts[i].font.height and i < len(fonts) - 1):
         i += 1
     return fonts[i]
 
@@ -213,9 +213,10 @@ def visualize_graph(list_bows, list_positions,
     else:
         img = orig_img.copy()
     # first, draw the nodes
-    img = draw_nodes(img, list_texts, list_positions,
-               node_labels, node_importances, position_importances,
-               bow_importances, bow_dict)
+    img = draw_nodes(
+        img, list_texts, list_positions,
+        node_labels, node_importances, position_importances,
+        bow_importances, bow_dict)
     # then, draw the edges
     img = draw_edges(img, list_positions, adj_mats,
                      adj_importances)
