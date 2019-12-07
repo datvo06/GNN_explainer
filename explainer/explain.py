@@ -1,6 +1,6 @@
 """ explain.py
 
-    Implementation of the explainer. 
+    Implementation of the explainer.
 """
 
 import math
@@ -69,7 +69,7 @@ class Explainer:
         self.writer = writer
         self.print_training = print_training
 
-    
+
     # Main method
     def explain(
         self, node_idx, graph_idx=0, graph_mode=False, unconstrained=False, model="exp"
@@ -90,7 +90,7 @@ class Explainer:
             )
             print("neigh graph idx: ", node_idx, node_idx_new)
             sub_label = np.expand_dims(sub_label, axis=0)
-        
+
         sub_adj = np.expand_dims(sub_adj, axis=0)
         sub_feat = np.expand_dims(sub_feat, axis=0)
 
@@ -132,6 +132,9 @@ class Explainer:
             masked_adj = nn.functional.sigmoid(masked_adj)
             masked_adj = masked_adj.cpu().detach().numpy() * sub_adj.squeeze()
         else:
+            # Starting the optimization progress
+            # As stated in the paper, the mask is found by
+            # an optimization process
             explainer.train()
             begin_time = time.time()
             for epoch in range(self.args.num_epochs):
@@ -227,7 +230,7 @@ class Explainer:
         Explain nodes
 
         Args:
-            - node_indices  :  Indices of the nodes to be explained 
+            - node_indices  :  Indices of the nodes to be explained
             - args          :  Program arguments (mainly for logging paths)
             - graph_idx     :  Index of the graph to explain the nodes from (if multiple).
         """
@@ -500,7 +503,7 @@ class Explainer:
     def align(
         self, ref_feat, ref_adj, ref_node_idx, curr_feat, curr_adj, curr_node_idx, args
     ):
-        """ Tries to find an alignment between two graphs. 
+        """ Tries to find an alignment between two graphs.
         """
         ref_adj = torch.FloatTensor(ref_adj)
         curr_adj = torch.FloatTensor(curr_adj)
@@ -589,6 +592,12 @@ class ExplainModule(nn.Module):
         use_sigmoid=True,
         graph_mode=False,
     ):
+        """
+        Args:
+            adj: the adjacency matrix (NxN)
+            x: the node features (NxD)
+            label: the node labels (N)
+        """
         super(ExplainModule, self).__init__()
         self.adj = adj
         self.x = x
@@ -603,19 +612,25 @@ class ExplainModule(nn.Module):
 
         init_strategy = "normal"
         num_nodes = adj.size()[1]
+        # First, init the edge mask and bias with normals
         self.mask, self.mask_bias = self.construct_edge_mask(
             num_nodes, init_strategy=init_strategy
         )
 
+        # The feature mask is used to highlight the important features
         self.feat_mask = self.construct_feat_mask(x.size(-1), init_strategy="constant")
         params = [self.mask, self.feat_mask]
+
         if self.mask_bias is not None:
             params.append(self.mask_bias)
+
         # For masking diagonal entries
         self.diag_mask = torch.ones(num_nodes, num_nodes) - torch.eye(num_nodes)
         if args.gpu:
             self.diag_mask = self.diag_mask.cuda()
 
+        # Normally, optimizer is just sgd, scheduler can be used to dimnish the
+        # gradients
         self.scheduler, self.optimizer = train_utils.build_optimizer(args, params)
 
         self.coeffs = {
@@ -628,6 +643,10 @@ class ExplainModule(nn.Module):
         }
 
     def construct_feat_mask(self, feat_dim, init_strategy="normal"):
+        """
+        Args:
+            feat_dim: an integer (D)
+        """
         mask = nn.Parameter(torch.FloatTensor(feat_dim))
         if init_strategy == "normal":
             std = 0.1
@@ -640,6 +659,10 @@ class ExplainModule(nn.Module):
         return mask
 
     def construct_edge_mask(self, num_nodes, init_strategy="normal", const_val=1.0):
+        """
+        Args:
+            num_nodes: number of nodes (N)
+        """
         mask = nn.Parameter(torch.FloatTensor(num_nodes, num_nodes))
         if init_strategy == "normal":
             std = nn.init.calculate_gain("relu") * math.sqrt(
@@ -680,6 +703,9 @@ class ExplainModule(nn.Module):
         return mask_sum / adj_sum
 
     def forward(self, node_idx, unconstrained=False, mask_features=True, marginalize=False):
+        """
+        Args:
+        """
         x = self.x.cuda() if self.args.gpu else self.x
 
         if unconstrained:
