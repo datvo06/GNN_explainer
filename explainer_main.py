@@ -144,7 +144,7 @@ def arg_parse():
         logdir="log",
         ckptdir="ckpt",
         dataset="syn1",
-        opt="adam",  
+        opt="adam",
         opt_scheduler="none",
         cuda="0",
         lr=0.1,
@@ -178,7 +178,7 @@ def main():
     else:
         print("Using CPU")
 
-    # Configure the logging directory 
+    # Configure the logging directory
     if prog_args.writer:
         path = os.path.join(prog_args.logdir, io_utils.gen_explainer_prefix(prog_args))
         if os.path.isdir(path) and prog_args.clean_log:
@@ -192,7 +192,7 @@ def main():
     # Load a model checkpoint
     ckpt = io_utils.load_ckpt(prog_args)
     cg_dict = ckpt["cg"] # get computation graph
-    input_dim = cg_dict["feat"].shape[2] 
+    input_dim = cg_dict["feat"].shape[2]
     num_classes = cg_dict["pred"].shape[2]
     print("Loaded model from {}".format(prog_args.ckptdir))
     print("input dim: ", input_dim, "; num classes: ", num_classes)
@@ -206,7 +206,7 @@ def main():
 
     # build model
     print("Method: ", prog_args.method)
-    if graph_mode: 
+    if graph_mode:
         # Explain Graph prediction
         model = models.GcnEncoderGraph(
             input_dim=input_dim,
@@ -220,7 +220,7 @@ def main():
     else:
         if prog_args.dataset == "ppi_essential":
             # class weight in CE loss for handling imbalanced label classes
-            prog_args.loss_weight = torch.tensor([1.0, 5.0], dtype=torch.float).cuda() 
+            prog_args.loss_weight = torch.tensor([1.0, 5.0], dtype=torch.float).cuda()
         # Explain Node prediction
         model = models.GcnEncoderNode(
             input_dim=input_dim,
@@ -234,7 +234,7 @@ def main():
     if prog_args.gpu:
         model = model.cuda()
     # load state_dict (obtained by model.state_dict() when saving checkpoint)
-    model.load_state_dict(ckpt["model_state"]) 
+    model.load_state_dict(ckpt["model_state"])
 
     # Create explainer
     explainer = explain.Explainer(
@@ -252,7 +252,7 @@ def main():
     )
 
     # TODO: API should definitely be cleaner
-    # Let's define exactly which modes we support 
+    # Let's define exactly which modes we support
     # We could even move each mode to a different method (even file)
     if prog_args.explain_node is not None:
         explainer.explain(prog_args.explain_node, unconstrained=False)
