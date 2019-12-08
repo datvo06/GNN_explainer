@@ -1,6 +1,7 @@
 __author__ = "Marc"
 from __future__ import print_function, unicode_literals, division
 import model_cinnamon
+import sklearn.metrics as metrics
 
 
 def train(dataset, model, args, same_feat=True,
@@ -115,3 +116,38 @@ def train(dataset, model, args, same_feat=True,
     io_utils.save_checkpoint(model, optimizer, args, num_epochs=-1,
                              cg_dict=cg_data)
     return model, val_accs
+
+
+def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
+    model.eval()
+
+    labels = []
+    preds = []
+    for batch_idx, data in enumerate(dataset):
+        adj = Variable(data["adj"].float(), requires_grad=False).cuda()
+        h0 = Variable(data["feats"].float()).cuda()
+        labels.append(data["label"].long().numpy())
+        batch_num_nodes = data["num_nodes"].int().numpy()
+        assign_input = Variable(
+            data["assign_feats"].float(), requires_grad=False
+        ).cuda()
+
+        ypred, att_adj = model(h0, adj, batch_num_nodes, assign_x=assign_input)
+        _, indices = torch.max(ypred, 1)
+        preds.append(indices.cpu().data.numpy())
+
+        if max_num_examples is not None:
+            if (batch_idx + 1) * args.batch_size > max_num_examples:
+                break
+
+    labels = np.hstack(labels)
+    preds = np.hstack(preds)
+
+    result = {
+        "prec": metrics.precision_score(labels, preds, average="macro"),
+        "recall": metrics.recall_score(labels, preds, average="macro"),
+        "acc": metrics.accuracy_score(labels, preds),
+    }
+    print(name, " accuracy:", result["acc"])
+    return result
+
