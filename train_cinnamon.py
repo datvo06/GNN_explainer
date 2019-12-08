@@ -1,7 +1,28 @@
 __author__ = "Marc"
 from __future__ import print_function, unicode_literals, division
+import torch
+import torch.utils.data.Dataset
 import model_cinnamon
+import pickle
 import sklearn.metrics as metrics
+
+
+class PerGraphNodePredDataLoader(torch.utils.data.Dataset):
+    def __init__(self, feature_fp, adj_fp, node_labels_fp):
+        self.features = self.load_features(feature_fp)
+        self.adjs = self.load_adjs(adj_fp)
+        self.labels = self.load_labels(node_labels_fp)
+
+
+    def __len__(self):
+        return self.features.shape[0]
+
+    def __getitem__(self, idx):
+        return {
+            "adj": self.adjs[idx],
+            "feats": self.features[idx],
+            "labels": self.labels[idx]
+        }
 
 
 def train(dataset, model, args, same_feat=True,
@@ -41,10 +62,6 @@ def train(dataset, model, args, same_feat=True,
             adj = Variable(data["adj"].float(), requires_grad=False).cuda()
             V = Variable(data["feats"].float(), requires_grad=False).cuda()
             label = Variable(data["label"].long()).cuda()
-            batch_num_nodes = data["num_nodes"].int().numpy() if mask_nodes else None
-            assign_input = Variable(
-                data["assign_feats"].float(), requires_grad=False
-            ).cuda()
 
             ypred = model(V, adj)
             predictions += ypred.cpu().detach().numpy().tolist()
@@ -127,12 +144,8 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
         adj = Variable(data["adj"].float(), requires_grad=False).cuda()
         h0 = Variable(data["feats"].float()).cuda()
         labels.append(data["label"].long().numpy())
-        batch_num_nodes = data["num_nodes"].int().numpy()
-        assign_input = Variable(
-            data["assign_feats"].float(), requires_grad=False
-        ).cuda()
 
-        ypred, att_adj = model(h0, adj, batch_num_nodes, assign_x=assign_input)
+        ypred, att_adj = model(h0, adj)
         _, indices = torch.max(ypred, 1)
         preds.append(indices.cpu().data.numpy())
 
