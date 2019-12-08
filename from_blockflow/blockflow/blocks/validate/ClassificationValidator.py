@@ -67,6 +67,7 @@ class ClassificationValidator(Block):
 				temp_feed_dict[is_training] = False
 
 			val_losses, val_accuracy, val_logits, val_labels = session.run([self.losses, self.accuracy, self.logits, self.labels], feed_dict=temp_feed_dict)
+			
 			res['validation_losses'].append(val_losses)
 			res['validation_accuracy'].append(val_accuracy)
 			
@@ -87,7 +88,8 @@ class ClassificationValidator(Block):
 			'Avg validate loss: {}, avg validate accuracy: {}'.format(np.round(np.mean(res['validation_losses']), 5), np.round(np.mean(res['validation_accuracy']), 5)),
 			'Precision: {}, Recall: {}'.format(np.round(res['precision'], 5), np.round(res['recall'], 5)),
 			'Confusion matrix:',
-			str(res['confusion_matrix'])
+			str(res['confusion_matrix']),
+			'Confusion matrix shape: ' + str(res['confusion_matrix'].shape)
 		]
 		res['log'] = mergeList(log_mess, '\n')
 		return res

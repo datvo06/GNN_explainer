@@ -1,6 +1,7 @@
 import os, sys, json
 import numpy as np
 import tensorflow as tf
+import time
 
 sys.path.append('../datahub/') 
 
@@ -21,7 +22,7 @@ class CheckpointBackup(Block):
 	def execute(self):
 		if self.saver is None:
 			# Must generate the Saver here, because Tensorflow requires building the computational graph before getting a train.Saver()
-			self.saver = tf.train.Saver()
+			self.saver = tf.train.Saver(max_to_keep=5000)
 
 		cur_ckp_dir = os.path.join(self.ckp_directory_path, 'epoch_' + str(self.get_current_iterations()))
 		createDirectory(cur_ckp_dir)

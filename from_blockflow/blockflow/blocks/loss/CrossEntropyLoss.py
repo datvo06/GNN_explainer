@@ -18,6 +18,7 @@ class CrossEntropyLoss(Block):
 		logits, _ = self.logits_block.get()['features']
 		temp = self.label_block.get()
 		labels, _ = temp['labels']
+
 		labels = tf.cast(labels, tf.int64)
 		
 		loss_weights = 1.0
@@ -45,7 +46,7 @@ class CrossEntropyLoss(Block):
 		accuracy = tf.reduce_mean(correct_prediction)
 		return {
 			'loss' : (cross_entropy, None),
-			'accuracy' : (accuracy, None)
+			'accuracy' : (accuracy, None),
 		}
 
 

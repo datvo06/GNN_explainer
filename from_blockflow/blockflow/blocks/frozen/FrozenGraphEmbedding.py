@@ -23,35 +23,36 @@ class FrozenGraphEmbedding(Block):
 		self.coord_features, _ = self.coord_features_block.get()['features']
 		self.adj_mats, _ = self.adj_mat_block.get()['adj_mats']
 
-		input_map = {
-			'import/{}:0'.format('inferrence_bow_features') : self.bow_features,
-			'import/{}:0'.format('inferrence_coord_features') : self.coord_features,
-			'import/{}:0'.format('inferrence_adj_mats') : self.adj_mats
-		}
-
 		graph = load_frozen_graph(self.model_pb_path)
-		graph_def = graph.as_graph_def()
-
-		self.output_tensor, = tf.import_graph_def(graph.as_graph_def(), 
-			input_map=input_map,
-			return_elements=['import/{}:0'.format('output_features')]
-		)
+		self.set_tf_session(tf.Session(graph=graph))
+		#graph_def = graph.as_graph_def()
 		
-		is_training_map = {}
-		graph = self.get_tf_session().graph
-		graph_def = graph.as_graph_def()
-		for n in graph_def.node:
-			node_name = n.name.split('/')[-1]
-			if node_name.startswith('is_training'):
-				tensor_name = n.name + ':0'
-				is_training_map[node_name] = graph.get_tensor_by_name(tensor_name)
-		temp = {
-			'features' : (self.output_tensor, None)
+		self.input_bow_tensor = graph.get_tensor_by_name('import/{}:0'.format('inferrence_bow_features'))
+		self.input_coord_tensor = graph.get_tensor_by_name('import/{}:0'.format('inferrence_coord_features'))
+		self.input_adj_tensor = graph.get_tensor_by_name('import/{}:0'.format('inferrence_adj_mats'))
+		self.output_tensor = graph.get_tensor_by_name('import/{}:0'.format('output_features'))
+		self.is_training = graph.get_tensor_by_name('import/{}:0'.format('is_training'))
+		self.graph = graph
+		return {
+			'features' : (self.output_tensor, None),
+			'is_training' : (self.is_training, None),	
 		}
-		for node_name in is_training_map:
-			temp[node_name] = (is_training_map[node_name], None)
 
-		return temp
+	def get_feed(self):
+		feed_dict = super().get_feed()
+		replace_dict = {
+			self.bow_features : self.input_bow_tensor,
+			self.coord_features : self.input_coord_tensor,
+			self.adj_mats : self.input_adj_tensor,
+		}
+
+		for cur_tensor in replace_dict:
+			if cur_tensor in feed_dict:
+				new_tensor = replace_dict[cur_tensor]
+				if new_tensor in feed_dict:
+					logTracker.logException('Duplicated tensor node: ' + str(new_tensor))
+				feed_dict[new_tensor] = feed_dict.pop(cur_tensor)
+		return feed_dict
 
 	def execute(self):
 		information_dict = self.get()		

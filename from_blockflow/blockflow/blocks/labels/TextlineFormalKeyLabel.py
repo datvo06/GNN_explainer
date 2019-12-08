@@ -13,6 +13,7 @@ class TextlineFormalKeyLabel(Block):
 	def __init__(self, json_reader_block, classes, class_types, is_one_hot=False, name=None):
 		Block.__init__(self, [json_reader_block], name=name)
 		self.json_reader_block = json_reader_block
+		classes = [c for c in classes if c != 'None']
 		self.classes = list(classes)
 		self.class_types = list(class_types)
 		self.is_one_hot = is_one_hot
@@ -43,12 +44,12 @@ def get_label_vectors(sample, classes, class_types, is_one_hot):
 		fk = label_info['formal_key']
 		fk_type = label_info['key_type']
 		if fk in classes and fk_type in class_types:
-			field_idx = classes.index(fk)
+			field_idx = classes.index(fk) * len(class_types) + class_types.index(fk_type) + 1
 		else:
 			field_idx = 0
 		labels.append([field_idx])	
 	if is_one_hot:
-		labels = to_one_hot(labels, len(classes))	
+		labels = to_one_hot(labels, (len(classes) - 1) * len(class_types) + 1)	
 
 	return np.array(labels, dtype=np.int8)
 	
