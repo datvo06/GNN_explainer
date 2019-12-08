@@ -89,9 +89,9 @@ def prepare_data(graphs, args, test_graphs=None, max_nodes=0):
     )
 
     dataset_sampler = graph_utils.GraphSampler(
-        val_graphs, 
-        normalize=False, 
-        max_num_nodes=max_nodes, 
+        val_graphs,
+        normalize=False,
+        max_num_nodes=max_nodes,
         features=args.feature_type
     )
     val_dataset_loader = torch.utils.data.DataLoader(
@@ -126,14 +126,10 @@ def prepare_data(graphs, args, test_graphs=None, max_nodes=0):
 
 #############################
 #
-# Training 
+# Training
 #
 #############################
-def train(
-    dataset,
-    model,
-    args,
-    same_feat=True,
+def train(dataset, model, args, same_feat=True,
     val_dataset=None,
     test_dataset=None,
     writer=None,

@@ -75,6 +75,7 @@ class NodeSelfAtten(nn.Module):
 class RobustFilterGraphCNNConfig1(nn.Module):
     def __init__(self, input_dim, output_dim, num_edges):
         super(RobustFilterGraphCNNConfig1, self).__init__()
+        self.output_dim = output_dim
         self.gcn1 = GraphConv(input_dim, 128, num_edges)
         self.dropout1 = torch.nn.modules.Dropout(p=0.5)
         self.gcn2 = GraphConv(128, 128, num_edges)
@@ -106,3 +107,9 @@ class RobustFilterGraphCNNConfig1(nn.Module):
 
         new_V = self.gcn7(self.dropout6(self.gcn6(self.dropout5(new_V), A)), A)
         return self.last_linear(new_V.view(-1, 32))
+
+
+    def loss(self, output, target):
+        pred = F.log_softmax(output.view(-1, output_dim), dim=-1)
+        loss = F.nll_loss(pred, target.view(-1))
+        return loss
