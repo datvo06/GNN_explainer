@@ -89,6 +89,23 @@ class AdamOptimizer(Block):
 				is_training, _ = information_dict['is_training']
 				temp_feed_dict[is_training] = True
 
+			# features, _ = self.loss_block.get()['features']
+			# labels, _ = self.loss_block.get()['labels']
+			# _, res_features, res_labels, losses, accuracy = session.run([self.train_op, features, labels, self.losses, self.accuracy], feed_dict=temp_feed_dict)
+			
+			# prediction = np.argmax(res_features, axis=-1).squeeze().tolist()	
+			# print(prediction)
+			# print('-' * 30)
+			# #prediction = np.argmax(res_labels, axis=-1).squeeze().tolist()	
+			# res_labels = res_labels.squeeze().tolist()
+			# print(res_labels)
+			# print('-' * 30)
+			# com = np.array(prediction) == np.array(res_labels)
+			# print(com.sum())
+			# print('-' * 30)
+			# print(losses)
+			# exit()
+
 			_, losses, accuracy = session.run([self.train_op, self.losses, self.accuracy], feed_dict=temp_feed_dict)
 			
 			exe_res['batch_losses'].append(losses)

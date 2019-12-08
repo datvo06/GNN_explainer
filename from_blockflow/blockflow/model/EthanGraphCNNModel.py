@@ -18,32 +18,33 @@ class EthanGraphCNNModel:
 		self.adj_mat_tensor = adj_mat_tensor 
 		self.is_training = tf.placeholder(tf.bool, name='is_training')
 		self.global_step = tf.Variable(0, name='global_step', trainable=False)
+		self.net_size = 256
 		
 	def ethan_gcnn_block(self, name):
-		self.make_embedding_layer(128)
+		self.make_embedding_layer(self.net_size)
 		self.make_dropout_layer()
 
-		self.make_graphcnn_layer(128)
+		self.make_graphcnn_layer(self.net_size)
 		self.make_dropout_layer()
 		g1 = self.current_V
 		
-		self.make_graphcnn_layer(128)
+		self.make_graphcnn_layer(self.net_size)
 		self.make_dropout_layer()
 		g2 = self.current_V
 		self.current_V = tf.concat([g2, g1], -1)
 		
-		self.make_graphcnn_layer(128)
+		self.make_graphcnn_layer(self.net_size)
 		self.make_dropout_layer()
 		g3 = self.current_V
 
 		self.current_V = tf.concat([g3, g1], -1)
-		self.make_embedding_layer(128)
-		self.make_self_atten(128, name + '_atten1')
+		self.make_embedding_layer(self.net_size)
+		self.make_self_atten(self.net_size, name + '_atten1')
 
 		self.make_dropout_layer()
-		self.make_embedding_layer(64)
+		self.make_embedding_layer(int(self.net_size / 2))
 		self.make_dropout_layer()
-		self.make_embedding_layer(32)
+		self.make_embedding_layer(int(self.net_size / 2))
 
 	def create_input(self):
 		self.current_V = tf.concat([self.bow_features_tensor, self.coord_features_tensor], axis=-1)

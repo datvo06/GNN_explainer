@@ -24,6 +24,7 @@ from blocks.validate.ClassificationValidator import ClassificationValidator
 #from blocks.util.Cache import Cache
 from blocks.util.SamplesFilter import SamplesFilter
 from blocks.util.ExecutedLogExporter import ExecutedLogExporter
+from blocks.util.ExecutedPickleExporter import ExecutedPickleExporter
 from blocks.util.BlocksRunner import BlocksRunner
 
 	
@@ -62,7 +63,7 @@ if __name__ == '__main__':
 	
 	# Inferring
 	logit_inferrer = ClassificationInferrer(embedding)
-	
+
 	# Content inference
 	textline_inferrer = OneToOneTextlineInferrer(logit_inferrer, fileloader_block, classes, corpus)
 
@@ -80,5 +81,8 @@ if __name__ == '__main__':
 			# Validating 
 			validator, 
 			# Exporting log
-			ExecutedLogExporter([validator], res_dir)]
+			ExecutedLogExporter([validator], res_dir),
+			# Exporting result (for confusion metrics)
+			ExecutedPickleExporter([validator], res_dir)
+		]
 	).run()
