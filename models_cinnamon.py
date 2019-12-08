@@ -17,7 +17,7 @@ class GraphConv(nn.Module):
         self.F = input_dim
         # h_weights: (L+1) (type of edges), F(input features), c(output dim)
         self.h_weights = nn.Parameter(
-            torch.FloatTensor(L+1, C, F))
+            torch.FloatTensor(self.L+1, self.C, self.F))
 
     def forward(self, V, A):
         """
