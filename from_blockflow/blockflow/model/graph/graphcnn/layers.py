@@ -47,14 +47,14 @@ def make_bn(V, phase, axis=-1, epsilon=0.001, mask=None, num_updates=None, name=
 	with tf.variable_scope(name, default_name='BatchNorm') as scope:
 		swapping_permutation, original_permulation = get_permutation_to_last(V.get_shape(), axis=axis)
 		# Move the target dimension to the last dimension
-		V = tf.transpose(V, perm=swapping_permutation)	
+		V = tf.transpose(V, perm=swapping_permutation)
 
 		# Start the batch normalization on the last dimension
 		axis = -1
 		input_size = V.get_shape()[axis].value
 		if axis < 0:
 			axis = len(V.get_shape()) + axis
-		
+
 		axis_arr = [i for i in range(len(V.get_shape())) if i != axis]
 		if mask == None:
 			batch_mean, batch_var = tf.nn.moments(V, axis_arr)
@@ -118,9 +118,12 @@ def make_gated_graphcnn_layer(V, A, num_layers, name=None):
 		no_features = V.get_shape()[2].value
 		gru_cell = tf.keras.layers.GRUCell(no_features)
 
-		W = make_variable_with_weight_decay('weights', [no_features*no_A, no_features], stddev=math.sqrt(1.0/(no_features*(no_A+1)*1.0)))
+		W = make_variable_with_weight_decay(
+            'weights',
+            [no_features*no_A, no_features],
+            stddev=math.sqrt(1.0/(no_features*(no_A+1)*1.0)))
 		b = make_bias_variable('bias', [no_features])
-		
+
 		#sub_V = batch_mat_mult(V, W) + b
 		for i in range(0, num_layers):
 			with tf.variable_scope(name, default_name='Gated-Graph-CNN-Iter' + str(i)) as scope:
@@ -129,16 +132,16 @@ def make_gated_graphcnn_layer(V, A, num_layers, name=None):
 				n = tf.reshape(n, [-1, A_shape[1], no_A*no_features])   # [None, None, no_A * no_features]
 				neighbor_info = batch_mat_mult(n, W) + b # Shape ~ [batch_size, no_vertices, 128]
 				flatten = tf.reshape(neighbor_info, [-1, no_features])
-				
+
 				# Add the sequence length dimension
 				flatten = tf.expand_dims(flatten, axis=1)
 				gru_input_seq = tf.unstack(flatten, axis=1)
-				
+
 				V_shape = tf.shape(V)
 				flatten_V = tf.reshape(V, [-1, no_features])
 				results, states = rnn.static_rnn(gru_cell, gru_input_seq, initial_state=flatten_V)
 				V = tf.reshape(states, V_shape)
-				
+
 		#print(states)
 		return results, V
 
@@ -167,7 +170,9 @@ def make_graph_embed_pooling(V, A, no_vertices=1, mask=None, name=None):
 def make_embedding_layer(V, no_filters, name=None):
 	with tf.variable_scope(name, default_name='Embed') as scope:
 		no_features = V.get_shape()[-1].value
-		W = make_variable_with_weight_decay('weights', [no_features, no_filters], stddev=1.0/math.sqrt(no_features))
+		W = make_variable_with_weight_decay('weights',
+                                      [no_features, no_filters],
+                                      stddev=1.0/math.sqrt(no_features))
 		b = make_bias_variable('bias', [no_filters])
 		V_reshape = tf.reshape(V, (-1, no_features))
 		s = tf.slice(tf.shape(V), [0], [len(V.get_shape())-1])
@@ -212,15 +217,15 @@ def make_non_local_block(V, num_relations, training, global_step, corr_type, nam
 		# We should use tf.transpose to switch the dimension sizes of the tensor, to keep the logic. For instance:
 		'''
 			Suppose that we have tensor A with shape [3, 5, 4, 6], where 3 is the batch size, 5 is the number of vertices, 4 is the number of adj matrices (relations) and 6 is the size of vertex feature vector.
-			
-			Now we want to transform A into shape of [3, 4, 5, 6] for latter computing facilitation, instead of using tf.reshape(A, [3, 4, 5, 6]) which will return 
-			an incorrect transformation (although it does face any error, and the computational graph is also correct), we should use tf.transpose(A, perm=[0, 2, 1, 3]) which will switch "positions" of the 2nd and the 1st dimensions. 
-			=> Explain: 
+
+			Now we want to transform A into shape of [3, 4, 5, 6] for latter computing facilitation, instead of using tf.reshape(A, [3, 4, 5, 6]) which will return
+			an incorrect transformation (although it does face any error, and the computational graph is also correct), we should use tf.transpose(A, perm=[0, 2, 1, 3]) which will switch "positions" of the 2nd and the 1st dimensions.
+			=> Explain:
 				- tf.reshape will flatten the tensor A first, and then grouping the elements with group size from left to right (in our case, it went from 6, 5, 4, and 3) to get the new tensor with shape [3, 4, 5, 6]
 
 				- tf.transpose will consider A as 3 subtensors, call Bi, each with shape [5, 4, 6]. Each Bi is treated as a matrix of shape [5, 4], each element of the matrix consists of 6 scalars. Then, it simply transpose that matrix into [4, 5] shape, with element of shape [6] . Finally, the function performs the procedure for all 3 subtensors of shape [5, 4, 6]. Finally, we get the output tensor with shape [3, 4, 5, 6] .
 
-			Example: 
+			Example:
 				>>> B
 				array([[[[ 0,  1,  2],
 						 [ 3,  4,  5],
@@ -238,7 +243,7 @@ def make_non_local_block(V, num_relations, training, global_step, corr_type, nam
 						 [39, 40, 41],
 						 [42, 43, 44],
 						 [45, 46, 47]]]])
-				>>> 
+				>>>
 				>>> np.reshape(B, [2, 4, 2, 3])
 				array([[[[ 0,  1,  2],
 						 [ 3,  4,  5]],
@@ -256,7 +261,7 @@ def make_non_local_block(V, num_relations, training, global_step, corr_type, nam
 						 [39, 40, 41]],
 						[[42, 43, 44],
 						 [45, 46, 47]]]])
-				>>> 
+				>>>
 				>>> np.transpose(B, [0, 2, 1, 3])
 				array([[[[ 0,  1,  2],
 						 [12, 13, 14]],
@@ -281,7 +286,7 @@ def make_non_local_block(V, num_relations, training, global_step, corr_type, nam
 		W = make_variable_with_weight_decay('weights_theta', [no_features, num_relations * inter_features], stddev=1.0/math.sqrt(no_features))
 		b = make_bias_variable('bias_theta', [num_relations * inter_features])
 		V_theta = tf.matmul(V, W) + b # [n_batchs * n_vertices, num_relations * inter_features]
-		# After flattening into a lower rank tensor, in order to keep the correct order of the original tensor, we have to reshape it back to the original tensor shape (and keeping the order of the original dimensions). 
+		# After flattening into a lower rank tensor, in order to keep the correct order of the original tensor, we have to reshape it back to the original tensor shape (and keeping the order of the original dimensions).
 		V_theta = tf.reshape(V_theta, tf.stack([-1, V_shape_org[-2], num_relations, inter_features]))
 		V_theta = tf.transpose(V_theta, perm=[0, 2, 1, 3])
 		#V_theta = make_bn(V_theta, training, num_updates=global_step)
@@ -299,7 +304,7 @@ def make_non_local_block(V, num_relations, training, global_step, corr_type, nam
 		V_g = tf.matmul(V, W) + b
 		V_g = tf.reshape(V_g, tf.stack([-1, V_shape_org[-2], num_relations, inter_features]))
 		V_g = tf.transpose(V_g, perm=[0, 2, 1, 3])
-		
+
 		# Compute the pairwise relationship matrix and then compute the weighted sum of all activation of vertices
 		f_adj = tf.matmul(V_theta, V_phi, transpose_b=True) # [n_batchs, num_relations, n_vertices, n_vertices]
 		raw_adj = f_adj
@@ -309,13 +314,13 @@ def make_non_local_block(V, num_relations, training, global_step, corr_type, nam
 		elif corr_type == 'sigmoid':
 			f_adj = tf.nn.sigmoid(f_adj) # It performs sigmoid on the last dimension
 		elif corr_type == 'relu':
-			f_adj = tf.nn.relu(f_adj) # It performs relu on the last dimension 
+			f_adj = tf.nn.relu(f_adj) # It performs relu on the last dimension
 		elif corr_type == 'tanh':
-			f_adj = tf.nn.tanh(f_adj) # It performs tanh on the last dimension        
+			f_adj = tf.nn.tanh(f_adj) # It performs tanh on the last dimension
 		else:
 			raise Exception('Not found corr type: ' + str(corr_type))
 		# elif corr_type == 'leaky_relu':
-		#     f_adj = tf.nn.leaky_relu(f_adj) # It performs leaky_relu on the last dimension    
+		#     f_adj = tf.nn.leaky_relu(f_adj) # It performs leaky_relu on the last dimension
 
 		y = tf.matmul(f_adj, V_g) # [n_batchs, num_relations, n_vertices, n_inter_features]
 		# Add one activation before reforming
@@ -330,7 +335,7 @@ def make_non_local_block(V, num_relations, training, global_step, corr_type, nam
 
 		# Add one activation before aggregation
 		y = tf.nn.relu(y)
-		
+
 		# This step is to merge all the adjacency matrices into one weights sum adjacency matrix
 		y = tf.transpose(y, perm=[0, 1, 3, 2]) # [n_batchs, n_vertices, n_features, num_relations]
 		W = make_variable_with_weight_decay('weights_merge_adjs', [num_relations, 1], stddev=1.0/math.sqrt(num_relations))
@@ -342,16 +347,16 @@ def make_non_local_block(V, num_relations, training, global_step, corr_type, nam
 
 		# Add the last activation
 		y = tf.nn.relu(y)
-			
+
 		# Transform the input V back into the original shape
-		V = tf.reshape(V, tf.stack([-1, V_shape_org[-2], no_features])) # [n_batchs, n_vertices, n_features]    
+		V = tf.reshape(V, tf.stack([-1, V_shape_org[-2], no_features])) # [n_batchs, n_vertices, n_features]
 
 		# Residual layer
 		z = y + V # [n_batchs, n_vertices, n_features]
-		
+
 		f_adj = tf.transpose(f_adj, perm=[0, 2, 1, 3]) # [n_batchs, n_vertices, num_relations, n_vertices]
 		raw_adj = tf.transpose(raw_adj, perm=[0, 2, 1, 3]) # [n_batchs, n_vertices, num_relations, n_vertices]
 		return z, f_adj, raw_adj
 
 
-		
+
