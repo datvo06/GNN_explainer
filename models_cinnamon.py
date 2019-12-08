@@ -30,7 +30,7 @@ class GraphConv(nn.Module):
         I = torch.unsqueeze(
             torch.unsqueeze(torch.eye(N), -1),
             0)
-        A = torch.cat(N, A, dim=-1) # BxNxNx(L+1)
+        A = torch.cat([N, A], dim=-1) # BxNxNx(L+1)
         A = A.view(-1, N, self.L+1) # (BN), N, (L+1)
         h = self.h_weights.view(self.L+1, self.C*self.F)
         # each row of A (vetor) will be activated with h
