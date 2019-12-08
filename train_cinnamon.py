@@ -1,41 +1,63 @@
-__author__ = "Marc"
 from __future__ import print_function, unicode_literals, division
-import torch
+import torch, pickle, time, matplotlib
 from torch.autograd import Variable
-import torch.utils.data.Dataset
-import model_cinnamon
-import pickle
+import torch.nn as nn
+from torch.utils.data import Dataset
+
+
+import numpy as np
+import matplotlib.pyplot as plt
 import sklearn.metrics as metrics
+import utils.math_utils as math_utils
+import utils.io_utils as io_utils
+
+from utils.pickle_related import read_pickle
+from models_cinnamon import RobustFilterGraphCNNConfig1
+
+import random
+# import shutil
+__author__ = "Marc"
 
 
-class PerGraphNodePredDataLoader(torch.utils.data.Dataset):
-    def __init__(self, feature_fp, adj_fp, node_labels_fp):
-        self.features = self.load_features(feature_fp)
-        self.adjs = self.load_adjs(adj_fp)
-        self.labels = self.load_labels(node_labels_fp)
-
+class PerGraphNodePredDataLoader(Dataset):
+    def __init__(self, dini_pickle_fp):
+        inp_dict = pickle.load(open(dini_pickle_fp, 'rb'))
+        self.inp_fps = inp_dict['file_paths']
+        self.inp_adj = inp_dict['HeuristicGraphAdjMat']
+        self.inp_bow = inp_dict['FormBowFeature']
+        self.inp_cod = inp_dict['TextlineCoordinateFeature']
+        self.labels = inp_dict['labels']
 
     def __len__(self):
-        return self.features.shape[0]
+        # TODO: features.shape = (N_Graph, Node, Feature)
+        return len(self.inp_fps)
 
-    def __getitem__(self, idx):
+    def getitem(self, idx):
         return {
-            "adj": self.adjs[idx],
-            "feats": self.features[idx],
-            "labels": self.labels[idx]
+            "adj": torch.Tensor(self.inp_adj[idx]).transpose(1, 2).unsqueeze(0),
+            "feats": torch.Tensor(np.concatenate((self.inp_bow[idx], self.inp_cod[idx]), -1)).unsqueeze(0),
+            "label": torch.Tensor(self.labels[idx]).unsqueeze(0)
         }
 
+    def __getitem__(self, idx):
+        if type(idx) != int:
+            list_idx = idx[:]
+            return_lists = [self.getitem(idx) for idx in list_idx]
+        else:
+            return_lists = self.getitem(idx)
+        return return_lists
 
-def train(dataset, model, args, same_feat=True,
-    val_dataset=None,
-    test_dataset=None,
-    writer=None,
-    mask_nodes=True,
-):
+
+def train(dataset, model_instance, args, same_feat=True,
+          val_dataset=None,
+          test_dataset=None,
+          writer=None,
+          mask_nodes=True,
+          ):
     writer_batch_idx = [0, 3, 6, 9]
 
     optimizer = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()), lr=0.001
+        filter(lambda p: p.requires_grad, model_instance.parameters()), lr=0.001
     )
     iter = 0
     best_val_result = {"epoch": 0, "loss": 0, "acc": 0}
@@ -51,25 +73,25 @@ def train(dataset, model, args, same_feat=True,
     for epoch in range(args.num_epochs):
         begin_time = time.time()
         avg_loss = 0.0
-        model.train()
+        model_instance.train()
         predictions = []
         print("Epoch: ", epoch)
         for batch_idx, data in enumerate(dataset):
-            model.zero_grad()
+            model_instance.zero_grad()
             all_adjs = data["adj"]
             all_feats = data["feats"]
             all_labels = data["label"]
 
-            adj = Variable(data["adj"].float(), requires_grad=False).cuda()
-            V = Variable(data["feats"].float(), requires_grad=False).cuda()
-            label = Variable(data["label"].long()).cuda()
+            adj = Variable(data["adj"].float(), requires_grad=False)  # .cuda()
+            V = Variable(data["feats"].float(), requires_grad=False)  # .cuda()
+            label = Variable(data["label"].long())  # .cuda()
 
-            ypred = model(V, adj)
+            ypred = model_instance(V, adj)
             predictions += ypred.cpu().detach().numpy().tolist()
 
-            loss = model.loss(ypred, label)
+            loss = model_instance.loss(ypred, label)
             loss.backward()
-            nn.utils.clip_grad_norm(model.parameters(), args.clip)
+            nn.utils.clip_grad_norm(model_instance.parameters(), args.clip)
             optimizer.step()
             iter += 1
             avg_loss += loss
@@ -80,18 +102,18 @@ def train(dataset, model, args, same_feat=True,
             writer.add_scalar("loss/avg_loss", avg_loss, epoch)
         print("Avg loss: ", avg_loss, "; epoch time: ", elapsed)
         result = evaluate(
-            dataset, model, args, name="Train", max_num_examples=100)
+            dataset, model_instance, args, name="Train", max_num_examples=100)
         train_accs.append(result["acc"])
         train_epochs.append(epoch)
         if val_dataset is not None:
-            val_result = evaluate(val_dataset, model, args, name="Validation")
+            val_result = evaluate(val_dataset, model_instance, args, name="Validation")
             val_accs.append(val_result["acc"])
         if val_result["acc"] > best_val_result["acc"] - 1e-7:
             best_val_result["acc"] = val_result["acc"]
             best_val_result["epoch"] = epoch
             best_val_result["loss"] = avg_loss
         if test_dataset is not None:
-            test_result = evaluate(test_dataset, model, args, name="Test")
+            test_result = evaluate(test_dataset, model_instance, args, name="Test")
             test_result["epoch"] = epoch
         if writer is not None:
             writer.add_scalar("acc/train_acc", result["acc"], epoch)
@@ -131,9 +153,9 @@ def train(dataset, model, args, same_feat=True,
         "pred": np.expand_dims(predictions, axis=0),
         "train_idx": list(range(len(dataset))),
     }
-    io_utils.save_checkpoint(model, optimizer, args, num_epochs=-1,
+    io_utils.save_checkpoint(model_instance, optimizer, args, num_epochs=-1,
                              cg_dict=cg_data)
-    return model, val_accs
+    return model_instance, val_accs
 
 
 def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
@@ -142,8 +164,8 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
     labels = []
     preds = []
     for batch_idx, data in enumerate(dataset):
-        adj = Variable(data["adj"].float(), requires_grad=False).cuda()
-        h0 = Variable(data["feats"].float()).cuda()
+        adj = Variable(data["adj"].float(), requires_grad=False)  # .cuda()
+        h0 = Variable(data["feats"].float())  # .cuda()
         labels.append(data["label"].long().numpy())
 
         ypred, att_adj = model(h0, adj)
@@ -165,7 +187,68 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
     print(name, " accuracy:", result["acc"])
     return result
 
+class dummyArgs(object):
+    def __init__(self):
+        pass
+
 
 if __name__ == '__main__':
+    random.seed(777)
+
     # set up the arguments
-    pass
+    args = dummyArgs()
+    args.batch_size = 1
+    args.clip = True
+    args.name = "dummy name"
+    args.num_epochs = 200
+    args.train_ratio = 0.8
+    args.test_ratio = 0.1
+
+    data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
+
+    i = 0
+    feature_dim = data_loader[i]['feats'].shape[-1]
+    n_labels = data_loader[i]['label'].shape[1]
+    n_edges = data_loader[i]['adj'].shape[-1]
+
+    graph_kv = RobustFilterGraphCNNConfig1(input_dim=feature_dim,
+                                           output_dim=n_labels,
+                                           num_edges=n_edges)
+    graphs = data_loader
+    test_graphs = None
+    indices = list(range(len(graphs)))
+    random.shuffle(indices)
+    if test_graphs is None:
+        train_idx = int(len(graphs) * args.train_ratio)
+        test_idx = int(len(graphs) * (1 - args.test_ratio))
+        # train_graphs = graphs[indices[:train_idx]]
+        train_graphs = [graphs[i] for i in indices[:train_idx]]
+        # val_graphs = graphs[indices[train_idx:test_idx]]
+        val_graphs = [graphs[i] for i in indices[train_idx:test_idx]]
+        # test_graphs = graphs[indices[test_idx:]]
+        test_graphs = [graphs[i] for i in indices[test_idx:]]
+    else:
+        train_idx = int(len(graphs) * args.train_ratio)
+        train_graphs = graphs[:train_idx]
+        val_graphs = graphs[train_idx:]
+    print(
+        "Num training graphs: ",
+        len(train_graphs),
+        "; Num validation graphs: ",
+        len(val_graphs),
+        "; Num testing graphs: ",
+        len(test_graphs),
+    )
+
+    train(train_graphs,
+          model_instance=graph_kv,
+          args=args,
+          same_feat=True,
+          val_dataset=val_graphs,
+          test_dataset=test_graphs,
+          writer=None,
+          mask_nodes=True,
+          )
+
+    print("Finished\n\n")
+    # pass

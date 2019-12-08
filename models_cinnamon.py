@@ -1,4 +1,3 @@
-__author__ = 'Marc, Dini'
 from __future__ import division, print_function, unicode_literals
 
 import torch
@@ -7,6 +6,7 @@ from torch.nn import init
 import torch.nn.functional as F
 
 import numpy as np
+__author__ = 'Marc, Dini'
 
 
 class GraphConv(nn.Module):
@@ -31,23 +31,34 @@ class GraphConv(nn.Module):
         I = torch.unsqueeze(
             torch.unsqueeze(torch.eye(N), -1),
             0)
-        A = torch.cat([N, A], dim=-1) # BxNxNx(L+1)
-        A = A.view(-1, N, self.L+1) # (BN), N, (L+1)
+        A = torch.cat([I, A], dim=-1)  # BxNxNx(L+1)
+        A = A.view(B*N, N, self.L+1)  # (BN), N, (L+1)
         h = self.h_weights.view(self.L+1, self.C*self.F)
+
         # each row of A (vetor) will be activated with h
         H = torch.matmul(A, h) # (BN) x N x (CF)
-        H = H.view(-1,  N, self.C, self.F) # B, N, N, C, F
+        H = H.view(B, N, N, self.C, self.F) # B, N, N, C, F
         # H storing a matrix of C pad, each contains an F activation weights
         # it's important to keep H as the prior matrix
         # inorder for the logic to be correct, if this is dirrected edge
         # Still, doing this would be fine...
-        H = H.transpose(1, 2) # B, N, C, N, F)
-        H = H.view(B, -1, N*self.F) # BxNCxNF
-        V = V.view(-1, N*self.F)  # BxNF
+        H = H.transpose(2, 3) # B, N, C, N, F)
+
+        H = H.squeeze(-1)
+
+        H = H.reshape((B, N*self.C, N*self.F)) # BxNCxNF
+
+        print(self.F)
+        V = V.view(B, N*self.F)  # BxNF
+        print(V.size())
+
         # For boardcast stuffs
         V = torch.unsqueeze(V, -1) #BxNFx1
+        print(V.size())
+
         V_out = torch.matmul(H, V) # BxNCx1
-        V_out = V.view(B, N, self.C)
+        print(V_out.size())
+        V_out = V_out.view(B, N, self.C)
         return F.relu(V_out)
 
 
@@ -64,6 +75,7 @@ class NodeSelfAtten(nn.Module):
 
     def forward(self, V, A):
         B = list(V.size())[0]
+        print("Inp selfatten V: ", V.size())
         f_out = self.f(V, A) # B x N X F//8
         g_out = self.g(V, A).transpose(1, 2) # B x F//8 x N
         h_out = self.h(V, A) # B x N x F
@@ -87,11 +99,11 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         self.gcn4 = GraphConv(256, 128, num_edges)
         self.dropout4 = torch.nn.modules.Dropout(p=0.5)
 
-        self.gcn5 = GraphConv(128, 64, num_edges)
-        self.self_atten = NodeSelfAtten(128, num_edges)
+        self.gcn5 = GraphConv(256, 64, num_edges)
+        self.self_atten = NodeSelfAtten(64, num_edges)
 
         self.dropout5 = torch.nn.modules.Dropout(p=0.5)
-        self.gcn6 = GraphConv(128, 64, num_edges)
+        self.gcn6 = GraphConv(64, 64, num_edges)
         self.dropout6 = torch.nn.modules.Dropout(p=0.5)
         self.gcn7 = GraphConv(64, 32, num_edges)
         self.last_linear = torch.nn.Linear(
@@ -101,8 +113,12 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         g1 = self.dropout2(self.gcn2(self.dropout1(self.gcn1(V,A)), A))
         g2 = self.dropout3(self.gcn3(g1, A))
         new_V = torch.cat([g2, g1], dim=-1)
+        print(new_V.size())
         g3 = self.dropout4(self.gcn4(new_V, A))
+        print("Here\n")
         new_V = torch.cat([g3, g1], dim=-1)
+        print("new V: ", new_V.size())
+
         new_V = self.self_atten(self.gcn5(new_V, A), A)
 
         new_V = self.gcn7(self.dropout6(self.gcn6(self.dropout5(new_V), A)), A)
@@ -110,6 +126,6 @@ class RobustFilterGraphCNNConfig1(nn.Module):
 
 
     def loss(self, output, target):
-        pred = F.log_softmax(output.view(-1, output_dim), dim=-1)
+        pred = F.log_softmax(output.view(-1, self.output_dim), dim=-1)
         loss = F.nll_loss(pred, target.view(-1))
         return loss

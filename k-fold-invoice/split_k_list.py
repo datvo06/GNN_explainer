@@ -63,9 +63,15 @@ def k_fold(dataset_dir, n_fold, out_folder=""):
         with open(os.path.join(out_folder, "%d_fold.lst") % i, "w") as fp:
             fp.write("\n".join(temp))
 
+    with open(os.path.join(out_folder, "all_files.lst"), "w") as fp:
+        fp.write("\n".join(datafiles))
+
     create_train_val(all_folds, out_folder)
+
     return all_folds
 
 
-invoice_data_dir = "../../Invoice_k_fold"
-k_fold(invoice_data_dir, 10)
+if __name__ == '__main__':
+
+    invoice_data_dir = "../../Invoice_k_fold"
+    # k_fold(invoice_data_dir, 10)
