@@ -1,0 +1,11 @@
+{
+	"input" : {
+		"FormBowFeature" : "inferrence_bow_features",
+		"TextlineCoordinateFeature" : "inferrence_coord_features",
+		"HeuristicGraphAdjMat" : "inferrence_adj_mats",
+		"EthanGraphEmbedding/is_training" : "is_training"
+	},
+	"output" : {
+		"FeatureEmbedding" : "output_features"
+	}
+}
