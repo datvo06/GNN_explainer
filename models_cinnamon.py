@@ -46,13 +46,15 @@ class GraphConv(nn.Module):
         # For boardcast stuffs
         V = torch.unsqueeze(V, -1) #BxNFx1
         V_out = torch.matmul(H, V) # BxNCx1
-        V_out = torch.view(B, N, self.C)
+        V_out = V.view(B, N, self.C)
         return V_out
 
 
-class RobustFilterGraphCNN(nn.Module):
+class RobustFilterGraphCNNConfig1(nn.Module):
     def __init__(self, input_dim, output_label, num_edges):
         super(RobustFilterGraphCNN, self).__init__()
+        gcn1 = GraphConv(128)
+        dropout1 = torch.nn.
 
 
 class GcnEncoderGraph(nn.Module):
