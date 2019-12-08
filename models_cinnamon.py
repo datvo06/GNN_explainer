@@ -48,7 +48,7 @@ class GraphConv(nn.Module):
         V = torch.unsqueeze(V, -1) #BxNFx1
         V_out = torch.matmul(H, V) # BxNCx1
         V_out = V.view(B, N, self.C)
-        return V_out
+        return F.relu(V_out)
 
 
 class NodeSelfAtten(nn.Module):
@@ -69,11 +69,11 @@ class NodeSelfAtten(nn.Module):
         h_out = self.h(V, A) # B x N x F
         s = self.softmax(torch.matmul(f_out, g_out)) # B x N x N
         o = torch.matmul(s, h_out)
-        return  gamma*o + V
+        return  self.gamma*o + V
 
 
 class RobustFilterGraphCNNConfig1(nn.Module):
-    def __init__(self, input_dim, output_label, num_edges):
+    def __init__(self, input_dim, output_dim, num_edges):
         super(RobustFilterGraphCNNConfig1, self).__init__()
         self.gcn1 = GraphConv(input_dim, 128, num_edges)
         self.dropout1 = torch.nn.modules.Dropout(p=0.5)
@@ -93,7 +93,8 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         self.gcn6 = GraphConv(128, 64, num_edges)
         self.dropout6 = torch.nn.modules.Dropout(p=0.5)
         self.gcn7 = GraphConv(64, 32, num_edges)
-
+        self.last_linear = torch.nn.Linear(
+            in_features=32, out_features=output_dim, bias=True)
 
     def forward(self, V, A):
         g1 = self.dropout2(self.gcn2(self.dropout1(self.gcn1(V,A)), A))
@@ -104,4 +105,4 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         new_V = self.self_atten(self.gcn5(new_V, A), A)
 
         new_V = self.gcn7(self.dropout6(self.gcn6(self.dropout5(new_V), A)), A)
-        return new_V
+        return self.last_linear(new_V.view(-1, 32))
