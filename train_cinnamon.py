@@ -1,6 +1,7 @@
 __author__ = "Marc"
 from __future__ import print_function, unicode_literals, division
 import torch
+from torch.autograd import Variable
 import torch.utils.data.Dataset
 import model_cinnamon
 import pickle
@@ -164,3 +165,7 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
     print(name, " accuracy:", result["acc"])
     return result
 
+
+if __name__ == '__main__':
+    # set up the arguments
+    pass
