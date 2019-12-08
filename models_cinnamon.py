@@ -10,92 +10,49 @@ import numpy as np
 
 
 class GraphConv(nn.Module):
-    def __init__(self, input_dim, output_dim):
+    def __init__(self, input_dim, output_dim, num_edges):
         super(GraphConv, self).__init__()
-        # h_weights: L (type of edges), F(input features), c(output dim)
-        # h_bias:
-        self.adj_type_w = nn.Parameter(torch.FloatTensor(input_dim, output_dim))
+        self.C = output_dim
+        self.L = num_edges
+        self.F = input_dim
+        # h_weights: (L+1) (type of edges), F(input features), c(output dim)
+        self.h_weights = nn.Parameter(
+            torch.FloatTensor(L+1, C, F))
 
     def forward(self, V, A):
-        # h_weights (L+1), A: NxNx(L+1) (concated with I)
-        #
+        """
+        Args:
+            V: BxNxF
+            A: BxNxNxL
+        """
+        B = list(A.size())[0]
+        N = list(A.size())[1]
+        I = torch.unsqueeze(
+            torch.unsqueeze(torch.eye(N), -1),
+            0)
+        A = torch.cat(N, A, dim=-1) # BxNxNx(L+1)
+        A = A.view(-1, N, self.L+1) # (BN), N, (L+1)
+        h = self.h_weights.view(self.L+1, self.C*self.F)
+        # each row of A (vetor) will be activated with h
+        H = torch.matmul(A, h) # (BN) x N x (CF)
+        H = H.view(-1,  N, self.C, self.F) # B, N, N, C, F
+        # H storing a matrix of C pad, each contains an F activation weights
+        # it's important to keep H as the prior matrix
+        # inorder for the logic to be correct, if this is dirrected edge
+        # Still, doing this would be fine...
+        H = H.transpose(1, 2) # B, N, C, N, F)
+        H = H.view(B, -1, N*self.F) # BxNCxNF
+        V = V.view(-1, N*self.F)  # BxNF
+        # For boardcast stuffs
+        V = torch.unsqueeze(V, -1) #BxNFx1
+        V_out = torch.matmul(H, V) # BxNCx1
+        V_out = torch.view(B, N, self.C)
+        return V_out
 
 
-
-
-# GCN basic operation
-class GraphConvWithDropout(nn.Module):
-    def __init__(
-        self,
-        input_dim,
-        output_dim,
-        add_self=False,
-        normalize_embedding=False,
-        dropout=0.0,
-        bias=True,
-        gpu=True,
-        att=False,
-    ):
-        super(GraphConvWithDropout, self).__init__()
-        self.att = att
-        self.add_self = add_self
-        self.dropout = dropout
-        if dropout > 0.001:
-            self.dropout_layer = nn.Dropout(p=dropout)
-        self.normalize_embedding = normalize_embedding
-        self.input_dim = input_dim
-        self.output_dim = output_dim
-        if not gpu:
-            self.weight = nn.Parameter(torch.FloatTensor(input_dim, output_dim))
-            if add_self:
-                self.self_weight = nn.Parameter(
-                    torch.FloatTensor(input_dim, output_dim)
-                )
-            if att:
-                self.att_weight = nn.Parameter(torch.FloatTensor(input_dim, input_dim))
-        else:
-            self.weight = nn.Parameter(torch.FloatTensor(input_dim, output_dim).cuda())
-            if add_self:
-                self.self_weight = nn.Parameter(
-                    torch.FloatTensor(input_dim, output_dim).cuda()
-                )
-            if att:
-                self.att_weight = nn.Parameter(
-                    torch.FloatTensor(input_dim, input_dim).cuda()
-                )
-        if bias:
-            if not gpu:
-                self.bias = nn.Parameter(torch.FloatTensor(output_dim))
-            else:
-                self.bias = nn.Parameter(torch.FloatTensor(output_dim).cuda())
-        else:
-            self.bias = None
-
-        # self.softmax = nn.Softmax(dim=-1)
-
-    def forward(self, x, adj):
-        if self.dropout > 0.001:
-            x = self.dropout_layer(x)
-        # deg = torch.sum(adj, -1, keepdim=True)
-        if self.att:
-            x_att = torch.matmul(x, self.att_weight)
-            # import pdb
-            # pdb.set_trace()
-            att = x_att @ x_att.permute(0, 2, 1)
-            # att = self.softmax(att)
-            adj = adj * att
-
-        y = torch.matmul(adj, x)
-        y = torch.matmul(y, self.weight)
-        if self.add_self:
-            self_emb = torch.matmul(x, self.self_weight)
-            y += self_emb
-        if self.bias is not None:
-            y = y + self.bias
-        if self.normalize_embedding:
-            y = F.normalize(y, p=2, dim=2)
-            # print(y[0][0])
-        return y, adj
+class RobustFilterGraphCNN(nn.Module):
+    def __init__(self, input_dim, output_label, num_edges):
+        super(RobustFilterGraphCNN, self).__init__()
 
 
 class GcnEncoderGraph(nn.Module):
