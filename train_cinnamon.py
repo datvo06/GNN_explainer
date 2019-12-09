@@ -17,6 +17,7 @@ from models_cinnamon import RobustFilterGraphCNNConfig1
 import random
 # import shutil
 __author__ = "Marc"
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class PerGraphNodePredDataLoader(Dataset):
@@ -70,6 +71,7 @@ def train(dataset, model_instance, args, same_feat=True,
     test_epochs = []
     val_accs = []
 
+    model_instance = model_instance.to(device)
     for epoch in range(args.num_epochs):
         begin_time = time.time()
         avg_loss = 0.0
@@ -86,10 +88,10 @@ def train(dataset, model_instance, args, same_feat=True,
             V = Variable(data["feats"].float(), requires_grad=False)  # .cuda()
             label = Variable(data["label"].long())  # .cuda()
 
-            ypred = model_instance(V, adj)
+            ypred = model_instance(V.to(device), adj.to(device))
             predictions += ypred.cpu().detach().numpy().tolist()
 
-            loss = model_instance.loss(ypred, label)
+            loss = model_instance.loss(ypred, label.to(device))
             loss.backward()
             nn.utils.clip_grad_norm(model_instance.parameters(), args.clip)
             optimizer.step()
@@ -168,7 +170,7 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
         h0 = Variable(data["feats"].float())  # .cuda()
         labels.append(data["label"].long().numpy())
 
-        ypred, att_adj = model(h0, adj)
+        ypred, att_adj = model(h0.to(device), adj.to(device))
         _, indices = torch.max(ypred, 1)
         preds.append(indices.cpu().data.numpy())
 
@@ -214,6 +216,7 @@ if __name__ == '__main__':
     graph_kv = RobustFilterGraphCNNConfig1(input_dim=feature_dim,
                                            output_dim=n_labels,
                                            num_edges=n_edges)
+    graph_kv.to(device)
     graphs = data_loader
     test_graphs = None
     indices = list(range(len(graphs)))
