@@ -103,7 +103,7 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         self.gcn7 = GraphConv(64, 32, num_edges)
         self.last_linear = torch.nn.Linear(
             in_features=32, out_features=output_dim, bias=True)
-        self.loss = torch.nn.CrossEntropyLoss()
+        self.criterion = torch.nn.CrossEntropyLoss()
 
     def forward(self, V, A):
         g1 = self.dropout2(self.gcn2(self.dropout1(self.gcn1(V,A)), A))
@@ -124,4 +124,4 @@ class RobustFilterGraphCNNConfig1(nn.Module):
 
 
     def loss(self, output, target):
-        return self.loss(output, target)
+        return self.criterion(output, target)
