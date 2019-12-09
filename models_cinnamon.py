@@ -18,7 +18,7 @@ class GraphConv(nn.Module):
         self.F = input_dim
         # h_weights: (L+1) (type of edges), F(input features), c(output dim)
         self.h_weights = nn.Parameter(
-            torch.FloatTensor(self.C, self.F*(self.L+1)))
+            torch.FloatTensor(self.F*(self.L+1), self.C))
         self.bias = nn.Parameter(
             torch.FloatTensor(self.C)) if with_bias else None
         # Todo: init the weight
