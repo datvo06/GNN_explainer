@@ -44,8 +44,8 @@ class GraphConv(nn.Module):
         new_V = torch.matmul(A, V.view(-1, N, self.F)).view(-1, N,
                                                             (self.L+1)*self.F)
         # BN, (L+1)*F
-        V_out = torch.matmul(new_V, self.h_weights) + self.bias
-        return F.relu(V_out)
+        V_out = torch.matmul(new_V, self.h_weights) + self.bias.unsqueeze(0)
+        return F.relu(V_out).view(B, N, self.C)
 
 
 class NodeSelfAtten(nn.Module):
