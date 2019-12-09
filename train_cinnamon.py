@@ -176,7 +176,7 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
         labels.append(data["label"].long().numpy())
 
         # TODO: fix the evaluate.
-        ypred, att_adj = model.forward(h0.to(device), adj.to(device))
+        ypred = model.forward(h0.to(device), adj.to(device))
         _, indices = torch.max(ypred, 1)
         preds.append(indices.cpu().data.numpy())
 
