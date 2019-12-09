@@ -133,7 +133,9 @@ def train(dataset, model_instance, args, same_feat=True,
             print("Test result: ", test_result)
             test_epochs.append(test_result["epoch"])
             test_accs.append(test_result["acc"])
-
+        if epoch %10 == 0:
+            filename = io_utils.create_filename(args.ckptdir, args, False, epoch)
+            torch.save(model_instance.state_dict())
     matplotlib.style.use("seaborn")
     plt.switch_backend("agg")
     plt.figure()
@@ -209,7 +211,12 @@ if __name__ == '__main__':
     # set up the arguments
     args = dummyArgs()
     args.batch_size = 1
+    args.bmname = None
+    args.hidden_dim = 500
+    args.dataset = "invoice"
     args.clip = True
+    args.ckptdir = "ckpt"
+    args.method = "GCN"
     args.name = "dummy name"
     args.num_epochs = 200
     args.train_ratio = 0.8
