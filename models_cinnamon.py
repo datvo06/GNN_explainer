@@ -122,6 +122,6 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         new_V = self.gcn7(self.dropout6(self.gcn6(self.dropout5(new_V), A)), A)
         return self.last_linear(new_V.view(-1, 32))
 
-
     def loss(self, output, target):
+        print(target.size())
         return self.criterion(output, target)
