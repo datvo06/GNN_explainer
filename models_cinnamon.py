@@ -20,7 +20,7 @@ class GraphConv(nn.Module):
         self.h_weights = nn.Parameter(
             torch.FloatTensor(self.C, self.F*(self.L+1)))
         self.bias = nn.Parameter(
-            torch.FloatTensor(self.F)) if with_bias else None
+            torch.FloatTensor(self.C)) if with_bias else None
         # Todo: init the weight
 
     def forward(self, V, A):
