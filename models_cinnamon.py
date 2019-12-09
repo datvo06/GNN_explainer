@@ -23,6 +23,9 @@ class GraphConv(nn.Module):
         self.bias = nn.Parameter(
             torch.FloatTensor(self.C)) if with_bias else None
         # Todo: init the weight
+        nn.init.xavier_normal_(self.h_weights)
+        nn.init.normal_(self.bias, mean=0.0001, std=0.00005)
+
 
     def apply_bn(self, x):
         """ Batch normalization of 3D tensor x
@@ -52,9 +55,11 @@ class GraphConv(nn.Module):
         A = A.transpose(1, 2).reshape(-1, (self.L+1)*N, N) # BN(L+1), N
         new_V = torch.matmul(A, V.view(-1, N, self.F)).view(-1, N,
                                                             (self.L+1)*self.F)
+
         # BN, (L+1)*F
         V_out = torch.matmul(new_V, self.h_weights) + self.bias.unsqueeze(0)
-        return F.relu(V_out).view(B, N, self.C)
+
+        return self.apply_bn(F.relu(V_out).view(B, N, self.C))
 
 
 class NodeSelfAtten(nn.Module):
@@ -123,5 +128,4 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         return self.last_linear(new_V.view(-1, 32))
 
     def loss(self, output, target):
-        print(target.size())
-        return self.criterion(output, target)
+        return self.criterion(output.view(-1, self.output_dim), target.view(-1))
