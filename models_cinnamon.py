@@ -40,7 +40,7 @@ class GraphConv(nn.Module):
         # Let's reverse stuffs a little bit for memory saving...
         # Since L is often much smaller than C, and we don't have that much mem
         # Aggregate node information first
-        A = A.transpose(1, 2).reshape(-1, N) # BN(L+1), N
+        A = A.transpose(1, 2).reshape(-1, (self.L+1)*N, N) # BN(L+1), N
         new_V = torch.matmul(A, V.view(-1, N, self.F)).view(-1, N,
                                                             (self.L+1)*self.F)
         # BN, (L+1)*F
