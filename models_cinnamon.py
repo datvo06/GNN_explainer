@@ -16,12 +16,21 @@ class GraphConv(nn.Module):
         self.C = output_dim
         self.L = num_edges
         self.F = input_dim
+        self.gpu = torch.cuda.is_available()
         # h_weights: (L+1) (type of edges), F(input features), c(output dim)
         self.h_weights = nn.Parameter(
             torch.FloatTensor(self.F*(self.L+1), self.C))
         self.bias = nn.Parameter(
             torch.FloatTensor(self.C)) if with_bias else None
         # Todo: init the weight
+
+    def apply_bn(self, x):
+        """ Batch normalization of 3D tensor x
+        """
+        bn_module = nn.BatchNorm1d(x.size()[1])
+        if self.gpu:
+            bn_module = bn_module.cuda()
+        return bn_module(x)
 
     def forward(self, V, A):
         """
@@ -94,6 +103,7 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         self.gcn7 = GraphConv(64, 32, num_edges)
         self.last_linear = torch.nn.Linear(
             in_features=32, out_features=output_dim, bias=True)
+        self.criterion = torch.nn.CrossEntropyLoss()
 
     def forward(self, V, A):
         g1 = self.dropout2(self.gcn2(self.dropout1(self.gcn1(V,A)), A))
@@ -114,6 +124,4 @@ class RobustFilterGraphCNNConfig1(nn.Module):
 
 
     def loss(self, output, target):
-        pred = F.log_softmax(output.view(-1, self.output_dim), dim=-1)
-        loss = F.nll_loss(pred, target.view(-1))
-        return loss
+        return self.criterion(output, target)
