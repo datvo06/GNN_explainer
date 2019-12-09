@@ -200,7 +200,8 @@ def visualize_graph(list_bows, list_positions,
         is_text: if the bows is texts
     """
     # First, get the texts for all bows
-    list_texts = list_bows[:]
+    list_texts = [(i for i in range(len(bow)) if bow[i] != 0)
+                  for bow in list_bows]
     bow_dict = dict([(word, i) for i, word in enumerate(word_list)]
                     ) if word_list is not None else None
     if not is_text and word_list is not None:
