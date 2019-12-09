@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 import numpy as np
 __author__ = 'Marc, Dini'
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class GraphConv(nn.Module):
@@ -30,7 +31,7 @@ class GraphConv(nn.Module):
         N = list(A.size())[1]
         I = torch.unsqueeze(
             torch.unsqueeze(torch.eye(N), -1),
-            0)
+            0).to(device)
         A = torch.cat([I, A], dim=-1)  # BxNxNx(L+1)
         A = A.view(B*N, N, self.L+1)  # (BN), N, (L+1)
         h = self.h_weights.view(self.L+1, self.C*self.F)
@@ -42,9 +43,7 @@ class GraphConv(nn.Module):
         # it's important to keep H as the prior matrix
         # inorder for the logic to be correct, if this is dirrected edge
         # Still, doing this would be fine...
-        H = H.transpose(2, 3) # B, N, C, N, F)
-
-        H = H.squeeze(-1)
+        H = H.transpose(2, 3).squeeze(-1) # B, N, C, N, F)
 
         H = H.reshape((B, N*self.C, N*self.F)) # BxNCxNF
 

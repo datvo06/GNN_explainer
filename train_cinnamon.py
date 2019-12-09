@@ -95,6 +95,7 @@ def train(dataset, model_instance, args, same_feat=True,
             loss.backward()
             nn.utils.clip_grad_norm(model_instance.parameters(), args.clip)
             optimizer.step()
+            print("Batch %d optimized." % batch_idx)
             iter += 1
             avg_loss += loss
 
