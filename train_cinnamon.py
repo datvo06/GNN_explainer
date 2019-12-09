@@ -92,11 +92,19 @@ def train(dataset, model_instance, args, same_feat=True,
             predictions += ypred.cpu().detach().numpy().tolist()
 
             loss = model_instance.loss(ypred, label.to(device))
+<<<<<<< HEAD
             # print("Loss: {}".format(loss.cpu().detach().numpy()))
             loss.backward()
             nn.utils.clip_grad_norm(model_instance.parameters(), args.clip)
             optimizer.step()
             # print("Batch %d optimized." % batch_idx)
+=======
+            loss.backward()
+            nn.utils.clip_grad_norm(model_instance.parameters(), args.clip)
+            optimizer.step()
+            if batch_idx % 10 == 0:
+                print("Batch {} optimized. Loss: {}" .format(batch_idx, loss.cpu().detach().numpy()))
+>>>>>>> refs/remotes/origin/master
             iter += 1
             avg_loss += loss
 
@@ -186,6 +194,11 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
 
     labels = np.hstack(labels).squeeze()
     preds = np.hstack(preds).squeeze()
+<<<<<<< HEAD
+=======
+    
+    print("Shape of labels, preds:", labels.shape, preds.shape, sep="\n")
+>>>>>>> refs/remotes/origin/master
 
     result = {
         "prec": metrics.precision_score(labels, preds, average="macro"),
