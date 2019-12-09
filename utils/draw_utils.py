@@ -48,15 +48,22 @@ def draw_node_bbox(img, bbox, label, importance=1.0):
     """
     For each node, denote significant by bbox
     """
+    # print("\'draw_node_bbox\' inputs:",
+    #       img.shape, bbox, label, importance, sep="\n")
     colors = get_colors_list_boxs()
+    # print("colors", colors)
+    # TODO: choose colors.
+
     return draw_bbox(img, bbox[0], bbox[1], bbox[2], bbox[3],
-                     colors[label % len(colors)],
+                     # colors[label % len(colors)],
+                     colors[0],
                      min(max(int(5*importance), 1.0), 5))
 
 
-def draw_nodes_bboxs(img, list_bboxs, labels, imporantces):
+def draw_nodes_bboxs(img, list_bboxs, labels, importances):
     for i, bbox in enumerate(list_bboxs):
-        img = draw_node_bbox(img, bbox, labels[i], imporantces[i])
+        img = draw_node_bbox(img, bbox, labels[i], importances[i])
+        # img = draw_node_bbox(img, bbox, labels[i], importances)
     return img
 
 
@@ -112,12 +119,14 @@ def draw_arrow(img, x1, y1, x2, y2, color, thickness=1):
                            (int(x2), int(y2)), color, thickness)
 
 
-def draw_node_position_feature_importances(img, bbox, node_pos_importances):
+def draw_node_position_feature_importances(img, bboxes, node_pos_importances):
     # feature order: topleft, top right, lower right, lowerleft
-    x, y, w, h = bbox
-    pts = [(x, y), (x+w, y), (x+w, y+h), (x, y+h)]
-    for i, pt in enumerate(pts):
+    for i, bbox in enumerate(bboxes):
+        x, y, w, h = bbox
+        # pt = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+        pt = (int(x + w/2), int(y + h/2))
         cv2.circle(img, pt, 5*node_pos_importances[i], (0, 255, 0), -1)
+    return img
 
 
 def draw_position_feature_importances(img, list_bboxs, position_importances):
@@ -140,7 +149,7 @@ def draw_nodes(img, list_texts, list_bboxs, node_labels,
     """
     Args:
         Node importances: N
-        position_importances: Nx4
+        position_importances: N
         bow importances: NxBoW
         bow_dict: dict mapping from char to feat index
     """
@@ -148,11 +157,13 @@ def draw_nodes(img, list_texts, list_bboxs, node_labels,
     img = draw_nodes_bboxs(img, list_bboxs, node_labels, node_importances)
 
     # Then, draw each nodes's positional importances
-    img = draw_node_position_feature_importances(
-        img, list_bboxs, position_importances)
+    img = draw_node_position_feature_importances(img, list_bboxs,
+                                                 position_importances)
     # Finally, draw each node's text with importances
+    # TODO: TypeError
     draw_node_text_importances(img, list_bboxs, list_texts,
                                bow_dict, bow_importances)
+    return img
 
 
 def draw_edges(img, list_bboxs, adj_mats, adj_importances_mask):
@@ -198,6 +209,11 @@ def visualize_graph(list_bows, list_positions,
         adj_mats: matrix of NxNxE (E is number of edge types)
         word_list: the list of word (if we were to visualize bows)
         is_text: if the bows is texts
+
+        Node importances: N
+        position_importances: Nx4
+        bow importances: NxBoW
+
     """
     # First, get the texts for all bows
     list_texts = [(i for i in range(len(bow)) if bow[i] != 0)
@@ -210,15 +226,17 @@ def visualize_graph(list_bows, list_positions,
     max_x = np.max(list_positions[:, 0] + list_positions[:, 2])
     max_y = np.max(list_positions[:, 1] + list_positions[:, 3])
     if orig_img is None:
-        img = np.zeros((max_y, max_x), dtype=np.uint8)
+        img = np.zeros((max_y, max_x, 3), dtype=np.uint8)
+        img.fill(200)  # Fill with grey
     else:
         img = orig_img.copy()
-    # first, draw the nodes
+    # First, draw the nodes
     img = draw_nodes(
-        img, list_texts, list_positions,
-        node_labels, node_importances, position_importances,
-        bow_importances, bow_dict)
+                img, list_texts, list_positions,
+                node_labels, node_importances, position_importances,
+                bow_importances, bow_dict)
     # then, draw the edges
-    img = draw_edges(img, list_positions, adj_mats,
-                     adj_importances)
+    # TODO:
+    # img = draw_edges(img, list_positions, adj_mats,
+    #                  adj_importances)
     return img
