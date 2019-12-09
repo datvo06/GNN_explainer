@@ -11,14 +11,16 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class GraphConv(nn.Module):
-    def __init__(self, input_dim, output_dim, num_edges):
+    def __init__(self, input_dim, output_dim, num_edges, with_bias=True):
         super(GraphConv, self).__init__()
         self.C = output_dim
         self.L = num_edges
         self.F = input_dim
         # h_weights: (L+1) (type of edges), F(input features), c(output dim)
         self.h_weights = nn.Parameter(
-            torch.FloatTensor(self.L+1, self.C, self.F))
+            torch.FloatTensor(self.C, self.F*(self.L+1)))
+        self.bias = nn.Parameter(
+            torch.FloatTensor(self.F)) if with_bias else None
         # Todo: init the weight
 
     def forward(self, V, A):
@@ -34,30 +36,14 @@ class GraphConv(nn.Module):
             0).to(device)
         A = torch.cat([I, A], dim=-1)  # BxNxNx(L+1)
         A = A.view(B*N, N, self.L+1)  # (BN), N, (L+1)
-        h = self.h_weights.view(self.L+1, self.C*self.F)
 
-        # each row of A (vetor) will be activated with h
-        H = torch.matmul(A, h) # (BN) x N x (CF)
-        H = H.view(B, N, N, self.C, self.F) # B, N, N, C, F
-        # H storing a matrix of C pad, each contains an F activation weights
-        # it's important to keep H as the prior matrix
-        # inorder for the logic to be correct, if this is dirrected edge
-        # Still, doing this would be fine...
-        H = H.transpose(2, 3).squeeze(-1) # B, N, C, N, F)
-
-        H = H.reshape((B, N*self.C, N*self.F)) # BxNCxNF
-
-        # print(self.F)
-        V = V.view(B, N*self.F)  # BxNF
-        # print(V.size())
-
-        # For boardcast stuffs
-        V = torch.unsqueeze(V, -1) #BxNFx1
-        # print(V.size())
-
-        V_out = torch.matmul(H, V) # BxNCx1
-        # print(V_out.size())
-        V_out = V_out.view(B, N, self.C)
+        # Let's reverse stuffs a little bit for memory saving...
+        # Since L is often much smaller than C, and we don't have that much mem
+        # Aggregate node information first
+        A = A.transpose(0, 2, 1).view(-1, N) # BN(L+1), N
+        new_V = torch.matmul(A, V.view(-1, N, self.F)).view(-1, N, (self.L+1)*F)
+        # BN, (L+1)*F
+        V_out = torch.matmul(new_V, self.h_weights) + self.bias
         return F.relu(V_out)
 
 
