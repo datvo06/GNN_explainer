@@ -146,7 +146,10 @@ def train(dataset, model_instance, args, same_feat=True,
     plt.close()
     matplotlib.style.use("default")
 
-    print(all_adjs.shape, all_feats.shape, all_labels.shape)
+    print("Shapes of \'all_adjs\', \'all_feats\', \'all_labels\':",
+          all_adjs.shape,
+          all_feats.shape,
+          all_labels.shape, sep="\n")
 
     cg_data = {
         "adj": all_adjs,
@@ -208,7 +211,8 @@ if __name__ == '__main__':
     args.test_ratio = 0.1
     args.gpu = torch.cuda.is_available()
 
-    data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
+    # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
+    data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
 
     i = 0
     feature_dim = data_loader[i]['feats'].shape[-1]

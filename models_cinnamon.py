@@ -48,16 +48,16 @@ class GraphConv(nn.Module):
 
         H = H.reshape((B, N*self.C, N*self.F)) # BxNCxNF
 
-        print(self.F)
+        # print(self.F)
         V = V.view(B, N*self.F)  # BxNF
-        print(V.size())
+        # print(V.size())
 
         # For boardcast stuffs
         V = torch.unsqueeze(V, -1) #BxNFx1
-        print(V.size())
+        # print(V.size())
 
         V_out = torch.matmul(H, V) # BxNCx1
-        print(V_out.size())
+        # print(V_out.size())
         V_out = V_out.view(B, N, self.C)
         return F.relu(V_out)
 
@@ -75,7 +75,7 @@ class NodeSelfAtten(nn.Module):
 
     def forward(self, V, A):
         B = list(V.size())[0]
-        print("Inp selfatten V: ", V.size())
+        # print("Inp selfatten V: ", V.size())
         f_out = self.f(V, A) # B x N X F//8
         g_out = self.g(V, A).transpose(1, 2) # B x F//8 x N
         h_out = self.h(V, A) # B x N x F
@@ -113,11 +113,13 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         g1 = self.dropout2(self.gcn2(self.dropout1(self.gcn1(V,A)), A))
         g2 = self.dropout3(self.gcn3(g1, A))
         new_V = torch.cat([g2, g1], dim=-1)
-        print(new_V.size())
+        # print(new_V.size())
+
         g3 = self.dropout4(self.gcn4(new_V, A))
-        print("Here\n")
+        # print("Here\n")
+
         new_V = torch.cat([g3, g1], dim=-1)
-        print("new V: ", new_V.size())
+        # print("new V: ", new_V.size())
 
         new_V = self.self_atten(self.gcn5(new_V, A), A)
 
