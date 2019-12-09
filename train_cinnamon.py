@@ -175,7 +175,8 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
         h0 = Variable(data["feats"].float())  # .cuda()
         labels.append(data["label"].long().numpy())
 
-        ypred, att_adj = model(h0.to(device), adj.to(device))
+        # TODO: fix the evaluate.
+        ypred = model.forward(h0.to(device), adj.to(device))
         _, indices = torch.max(ypred, 1)
         preds.append(indices.cpu().data.numpy())
 
