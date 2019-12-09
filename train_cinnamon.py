@@ -92,11 +92,11 @@ def train(dataset, model_instance, args, same_feat=True,
             predictions += ypred.cpu().detach().numpy().tolist()
 
             loss = model_instance.loss(ypred, label.to(device))
-            print("Loss: {}".format(loss.cpu().detach().numpy()))
+            # print("Loss: {}".format(loss.cpu().detach().numpy()))
             loss.backward()
             nn.utils.clip_grad_norm(model_instance.parameters(), args.clip)
             optimizer.step()
-            print("Batch %d optimized." % batch_idx)
+            # print("Batch %d optimized." % batch_idx)
             iter += 1
             avg_loss += loss
 
@@ -184,8 +184,8 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
             if (batch_idx + 1) * args.batch_size > max_num_examples:
                 break
 
-    labels = np.hstack(labels)
-    preds = np.hstack(preds)
+    labels = np.hstack(labels).squeeze()
+    preds = np.hstack(preds).squeeze()
 
     result = {
         "prec": metrics.precision_score(labels, preds, average="macro"),
