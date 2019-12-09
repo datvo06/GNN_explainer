@@ -189,6 +189,7 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
     print(name, " accuracy:", result["acc"])
     return result
 
+
 class dummyArgs(object):
     def __init__(self):
         pass
@@ -205,6 +206,7 @@ if __name__ == '__main__':
     args.num_epochs = 200
     args.train_ratio = 0.8
     args.test_ratio = 0.1
+    args.gpu = torch.cuda.is_available()
 
     data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
 
