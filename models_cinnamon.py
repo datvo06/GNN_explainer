@@ -101,22 +101,22 @@ class LinearEmbedding(nn.Module):
 
 
 class NodeSelfAtten(nn.Module):
-    def __init__(self, input_dim, num_edges):
+    def __init__(self, input_dim):
         super(NodeSelfAtten, self).__init__()
         self.F = input_dim
-        self.f = LinearEmbedding(input_dim, self.F//8)
-        self.g = LinearEmbedding(input_dim, self.F//8)
+        self.f = LinearEmbedding(input_dim, int(self.F//8))
+        self.g = LinearEmbedding(input_dim, int(self.F//8))
         self.h = LinearEmbedding(input_dim, self.F)
         # Default tf softmax is -1, default torch softmax is flatten
         self.softmax = torch.nn.Softmax(-1)
         self.gamma = nn.Parameter(torch.FloatTensor(input_dim))
 
-    def forward(self, V, A):
+    def forward(self, V):
         B = list(V.size())[0]
         # print("Inp selfatten V: ", V.size())
-        f_out = self.f(V, A) # B x N X F//8
-        g_out = self.g(V, A).transpose(1, 2) # B x F//8 x N
-        h_out = self.h(V, A) # B x N x F
+        f_out = self.f(V) # B x N X F//8
+        g_out = self.g(V).transpose(1, 2) # B x F//8 x N
+        h_out = self.h(V) # B x N x F
         s = self.softmax(torch.matmul(f_out, g_out)) # B x N x N
         o = torch.matmul(s, h_out)
         return  self.gamma*o + V
@@ -139,15 +139,15 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         self.gcn3 = GraphConv(self.net_size*2, self.net_size, num_edges)
         self.dropout4 = torch.nn.modules.Dropout(p=0.5)
 
-        self.emb2 = LinearEmbedding(self.net_size*2, self.net_size/2)
-        self.self_atten = NodeSelfAtten(64, num_edges)
+        self.emb2 = LinearEmbedding(self.net_size*2, int(self.net_size/2))
+        self.self_atten = NodeSelfAtten(int(self.net_size/2))
 
         self.dropout5 = torch.nn.modules.Dropout(p=0.5)
-        self.gcn4 = GraphConv(self.net_size/2, self.net_size/2, num_edges)
+        self.gcn4 = GraphConv(int(self.net_size/2), int(self.net_size/2), num_edges)
         self.dropout6 = torch.nn.modules.Dropout(p=0.5)
-        self.gcn5 = GraphConv(self.net_size/2, self.net_size/2, num_edges)
-        self.last_linear = torch.nn.Linear(
-            in_features=self.net_size/2, out_features=output_dim, bias=True)
+        self.gcn5 = GraphConv(int(self.net_size/2), int(self.net_size/2), num_edges)
+        self.last_linear = LinearEmbedding(
+            int(self.net_size/2), output_dim)
         self.criterion = torch.nn.CrossEntropyLoss()
 
     def forward(self, V, A):
@@ -162,10 +162,10 @@ class RobustFilterGraphCNNConfig1(nn.Module):
         new_V = torch.cat([g3, g1], dim=-1)
         # print("new V: ", new_V.size())
 
-        new_V = self.self_atten(self.emb2(new_V), A)
+        new_V = self.self_atten(self.emb2(new_V))
 
         new_V = self.gcn5(self.dropout6(self.gcn4(self.dropout5(new_V), A)), A)
-        return self.last_linear(new_V.view(-1, self.net_size/2))
+        return self.last_linear(new_V)
 
     def loss(self, output, target):
         return self.criterion(output.view(-1, self.output_dim), target.view(-1))

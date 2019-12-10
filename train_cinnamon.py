@@ -179,7 +179,7 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
 
         # TODO: fix the evaluate.
         ypred = model.forward(h0.to(device), adj.to(device))
-        _, indices = torch.max(ypred, 1)
+        _, indices = torch.max(ypred, -1)
         preds.append(indices.cpu().data.numpy())
 
         if max_num_examples is not None:
@@ -187,7 +187,9 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
                 break
 
     labels = np.hstack(labels).squeeze()
+    print("Label: ", labels.shape)
     preds = np.hstack(preds).squeeze()
+    print("Predict: ", preds.shape)
 
     result = {
         "prec": metrics.precision_score(labels, preds, average="macro"),
