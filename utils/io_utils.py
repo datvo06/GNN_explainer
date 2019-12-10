@@ -44,10 +44,12 @@ def gen_prefix(args):
     name += "_" + args.method
 
     name += "_h" + str(args.hidden_dim) + "_o" + str(args.output_dim)
+    '''
     if not args.bias:
         name += "_nobias"
     if len(args.name_suffix) > 0:
         name += "_" + args.name_suffix
+    '''
     return name
 
 
@@ -664,7 +666,7 @@ def build_aromaticity_dataset():
 
 
 def gen_train_plt_name(args):
-    return "results/" + io_utils.gen_prefix(args) + ".png"
+    return "results/" + gen_prefix(args) + ".png"
 
 
 def log_assignment(assign_tensor, writer, epoch, batch_idx):

@@ -135,7 +135,7 @@ def train(dataset, model_instance, args, same_feat=True,
             test_accs.append(test_result["acc"])
         if epoch %10 == 0:
             filename = io_utils.create_filename(args.ckptdir, args, False, epoch)
-            torch.save(model_instance.state_dict())
+            torch.save(model_instance.state_dict(), filename)
     matplotlib.style.use("seaborn")
     plt.switch_backend("agg")
     plt.figure()
@@ -208,12 +208,14 @@ class dummyArgs(object):
 if __name__ == '__main__':
     random.seed(777)
 
+    data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
     # set up the arguments
     args = dummyArgs()
     args.batch_size = 1
     args.bmname = None
     args.hidden_dim = 500
     args.dataset = "invoice"
+    args.output_dim = np.max(np.array(np.concatenate(data_loader.labels, axis=0))) + 1
     args.clip = True
     args.ckptdir = "ckpt"
     args.method = "GCN"
@@ -224,11 +226,10 @@ if __name__ == '__main__':
     args.gpu = torch.cuda.is_available()
 
     # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
-    data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
 
     i = 0
     feature_dim = data_loader[i]['feats'].shape[-1]
-    n_labels = data_loader[i]['label'].shape[1]
+    n_labels = args.output_dim
     n_edges = data_loader[i]['adj'].shape[-1]
 
     graph_kv = RobustFilterGraphCNNConfig1(input_dim=feature_dim,
