@@ -34,8 +34,10 @@ if __name__ == '__main__':
 
     i = 0
     adj = input_data['HeuristicGraphAdjMat'][i]
+    adj = np.transpose(adj, (0, 2, 1))
     bow = input_data['FormBowFeature'][i]
     coord = input_data['TextlineCoordinateFeature'][i]
+    coord = coord*1.1 - 0.1
     label_y = input_data['labels'][i]
     N = bow.shape[0]
 
@@ -43,11 +45,13 @@ if __name__ == '__main__':
                             list_positions=(coord*1000).astype(int),
                             adj_mats=adj,
                             node_labels=label_y,
-                            node_importances=N*[1],
-                            # position_importances=N*[4*[1]],
-                            position_importances=N*[1],
-                            bow_importances=N*[bow.shape[-1] * [1]],
-                            adj_importances=1,
+                            node_importances=np.random.random(N),
+                            # node_importances=N*[4*[1]],
+                            position_importances=np.random.random((N, 4, 1)),
+                            # position_importances=N*[1],
+                            # bow_importances=N*[bow.shape[-1] * [1]],
+                            bow_importances=np.random.random((N, bow.shape[-1])),
+                            adj_importances=np.random.random(adj.shape),
                             word_list=corpus
                             )
 
