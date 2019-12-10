@@ -188,8 +188,6 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
 
     labels = np.hstack(labels).squeeze()
     preds = np.hstack(preds).squeeze()
-    
-    print("Shape of labels, preds:", labels.shape, preds.shape, sep="\n")
 
     result = {
         "prec": metrics.precision_score(labels, preds, average="macro"),
