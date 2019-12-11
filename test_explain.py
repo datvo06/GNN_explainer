@@ -180,13 +180,13 @@ class dummyArgs(object):
         pass
 
 
-def main():
+if __name__ == "__main__":
     # Load a configuration
     # prog_args = arg_parse()
 
     prog_args = dummyArgs()
-    data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
-    # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
+    # data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
+    data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
     prog_args.batch_size = 1
     prog_args.bmname = None
     prog_args.hidden_dim = 500
@@ -205,6 +205,17 @@ def main():
     prog_args.writer = None
     prog_args.logdir = os.path.join(os.getcwd(), "explain_log")
 
+    # Load a model checkpoint
+    ckpt = io_utils.load_ckpt(prog_args)
+    cg_dict = ckpt["cg"] # get computation graph
+    input_dim = cg_dict["feat"].detach().numpy().shape[2]
+
+    # cg_dict["pred"][0][sample_idx][textline_idx] = kv last layer output.
+    num_classes = len(cg_dict["pred"][0][0][0])
+
+    print("Loaded model from {}".format(prog_args.ckptdir))
+    print("input dim: ", input_dim, "; num classes: ", num_classes)
+
 
     if prog_args.gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = prog_args.cuda
@@ -222,14 +233,6 @@ def main():
         writer = SummaryWriter(path)
     else:
         writer = None
-
-    # Load a model checkpoint
-    ckpt = io_utils.load_ckpt(prog_args)
-    cg_dict = ckpt["cg"] # get computation graph
-    input_dim = cg_dict["feat"].shape[2]
-    num_classes = cg_dict["pred"].shape[2]
-    print("Loaded model from {}".format(prog_args.ckptdir))
-    print("input dim: ", input_dim, "; num classes: ", num_classes)
 
     '''
     # Determine explainer mode
@@ -284,6 +287,11 @@ def main():
     # Create explainer
     # TODO: Choose graph_idx.
     prog_args.graph_idx = 0
+    prog_args.mask_act = "sigmoid"  # "ReLU"
+    prog_args.opt = 'adam'
+    prog_args.lr = 0.00001
+    prog_args.opt_scheduler = 'none'
+
     explainer = explain.ExplainerMultiEdges(
         model=model,
         adj=cg_dict["adj"],
@@ -330,8 +338,4 @@ def main():
         masked_adj = explainer.explain_nodes_gnn_stats(
             range(400, 700, 5), prog_args
         )
-
-
-if __name__ == "__main__":
-    main()
 

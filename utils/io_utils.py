@@ -109,11 +109,12 @@ def load_ckpt(args, isbest=False):
     '''Load a pre-trained pytorch model from checkpoint.
     '''
     print("loading model")
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     filename = create_filename(args.ckptdir, args, isbest)
     print(filename)
     if os.path.isfile(filename):
         print("=> loading checkpoint '{}'".format(filename))
-        ckpt = torch.load(filename)
+        ckpt = torch.load(filename, map_location=device)
     else:
         print("Checkpoint does not exist!")
         print("Checked path -- {}".format(filename))

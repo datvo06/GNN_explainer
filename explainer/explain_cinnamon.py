@@ -92,7 +92,7 @@ class ExplainerMultiEdges:
             args=self.args,
             writer=self.writer,
             graph_idx=self.graph_idx,
-            graph_mode=self.graph_mode,
+            # graph_mode=self.graph_mode,
         )
         # The explainer is used to create and maintain the masks
         # otherwise it will not interferes with model's prediction
@@ -571,8 +571,12 @@ class ExplainMultiEdgesModule(nn.Module):
             label: the node labels (N)
         """
         super(ExplainMultiEdgesModule, self).__init__()
+
+        adj = adj.squeeze()
+        x = x.squeeze()
         assert (len(list(adj.size())) == 3), "Adj mush be NxNxL"
         assert len(list(x.size())) == 2, "x must be NxF"
+
         self.adj = adj
         self.x = x
         self.model = model
@@ -589,6 +593,9 @@ class ExplainMultiEdgesModule(nn.Module):
         num_edges = adj.size()[-1]
         # First, init the edge mask and bias with normals
         # This is where we modify them
+        # TODO: Make mask_bias cleaner.
+        self.args.mask_bias=True
+
         self.mask, self.mask_bias = self.construct_edge_mask(
             num_nodes, num_edges, init_strategy=init_strategy
         )
