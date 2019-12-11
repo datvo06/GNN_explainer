@@ -55,9 +55,9 @@ if __name__ == '__main__':
                             word_list=corpus
                             )
 
-    cv2.imshow('My Image', image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # cv2.imshow('My Image', image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
 
 

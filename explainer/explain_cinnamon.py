@@ -45,7 +45,7 @@ class ExplainerMultiEdges:
         adj, feat, label,
         pred, train_idx,
         args, writer=None, print_training=True,
-        graph_mode=False, graph_idx=False,
+        graph_idx=False,
     ):
         self.model = model
         self.model.eval()
@@ -54,7 +54,6 @@ class ExplainerMultiEdges:
         self.label = label
         self.pred = pred
         self.train_idx = train_idx
-        self.graph_mode = graph_mode
         self.graph_idx = graph_idx
         self.args = args
         self.writer = writer
