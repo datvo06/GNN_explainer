@@ -313,7 +313,9 @@ if __name__ == "__main__":
     prog_args.explain_node = [i for i in range(len(cg_dict['label'][prog_args.graph_idx])) if cg_dict['label'][prog_args.graph_idx][i] > 0]
     prog_args.multinode_class = 1
 
-    explainer.explain(prog_args.explain_node, unconstrained=False)
+    # explainer.explain(prog_args.explain_node, unconstrained=False)
+    explainer.explain_nodes_gnn_stats(prog_args.explain_node, prog_args)
+
     if prog_args.multinode_class >= 0:
         print(cg_dict["label"])
         # only run for nodes with label specified by multinode_class

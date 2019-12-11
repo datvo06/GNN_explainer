@@ -71,7 +71,8 @@ class ExplainerMultiEdges:
         node_idx_new = node_idx
         sub_adj = self.adj[graph_idx]
         sub_feat = self.feat[graph_idx, :]
-        sub_label = self.label[graph_idx]
+        sub_label = self.label[graph_idx].squeeze()
+        # print(sub_label)
         neighbors = np.asarray(range(self.adj.shape[0]))
 
         sub_adj = np.expand_dims(sub_adj, axis=0)
@@ -80,9 +81,11 @@ class ExplainerMultiEdges:
         adj   = torch.tensor(sub_adj, dtype=torch.float)
         x     = torch.tensor(sub_feat, requires_grad=True, dtype=torch.float)
         label = torch.tensor(sub_label, dtype=torch.long)
-
-        pred_label = np.argmax(self.pred[0][graph_idx], axis=0)
-        print("Graph predicted label: ", pred_label)
+        '''
+        self.pred: matrix, first row is a n_graphs-dimensional vector, each of which contain a list storing the Graph features
+        '''
+        pred_label = torch.Tensor(np.argmax(np.array(self.pred[0, graph_idx]), axis=1))
+        # print("Graph predicted label: ", np.array(self.pred[0, graph_idx]).shape)
 
         explainer = ExplainMultiEdgesModule(
             adj=adj,
@@ -110,8 +113,8 @@ class ExplainerMultiEdges:
         for epoch in range(self.args.num_epochs):
             explainer.zero_grad()
             explainer.optimizer.zero_grad()
-            ypred, adj_atts = explainer(node_idx_new, unconstrained=unconstrained)
-            loss = explainer.loss(ypred, pred_label, node_idx_new, epoch)
+            ypred = explainer(node_idx_new, unconstrained=unconstrained)
+            loss = explainer.loss(ypred, pred_label, graph_idx, node_idx_new, epoch)
             loss.backward()
 
             explainer.optimizer.step()
@@ -389,7 +392,7 @@ class ExplainerMultiEdges:
             pred = np.argmax(self.pred[0][graph_idx], axis=0)
         else:
             pred = np.argmax(self.pred[graph_idx][self.train_idx], axis=1)
-        print(metrics.confusion_matrix(self.label[graph_idx][self.train_idx], pred))
+        # print(metrics.confusion_matrix(self.label[graph_idx][self.train_idx], pred))
         plt.switch_backend("agg")
         fig = plt.figure(figsize=(5, 3), dpi=600)
         for i in range(2):
@@ -587,6 +590,7 @@ class ExplainMultiEdgesModule(nn.Module):
         self.mask_act = args.mask_act
         self.use_sigmoid = use_sigmoid
         self.graph_mode = graph_mode
+        self.criterion = torch.nn.CrossEntropyLoss()
 
         init_strategy = "normal"
         num_nodes = adj.size()[1]
@@ -609,7 +613,7 @@ class ExplainMultiEdgesModule(nn.Module):
             params.append(self.mask_bias)
 
         # For masking diagonal entries
-        self.diag_mask = torch.ones(num_nodes, num_nodes) - torch.eye(num_nodes)
+        self.diag_mask = torch.ones(num_nodes, num_nodes, num_edges) - torch.eye(num_nodes).unsqueeze(-1)
         if args.gpu:
             self.diag_mask = self.diag_mask.cuda()
 
@@ -677,13 +681,13 @@ class ExplainMultiEdgesModule(nn.Module):
             sym_mask = torch.sigmoid(self.mask)
         elif self.mask_act == "ReLU":
             sym_mask = nn.ReLU()(self.mask)
-        sym_mask = (sym_mask + sym_mask.t()) / 2
+        sym_mask = (sym_mask + sym_mask.transpose(0, 1)) / 2
         adj = self.adj.cuda() if self.args.gpu else self.adj
         masked_adj = adj * sym_mask
         if self.args.mask_bias:
-            bias = (self.mask_bias + self.mask_bias.t()) / 2
+            bias = (self.mask_bias + self.mask_bias.transpose(0, 1)) / 2
             bias = nn.ReLU6()(bias * 6) / 6
-            masked_adj += (bias + bias.t()) / 2
+            masked_adj += (bias + bias.transpose(0, 1)) / 2
         return masked_adj * self.diag_mask
 
     def mask_density(self):
@@ -701,7 +705,7 @@ class ExplainMultiEdgesModule(nn.Module):
         if unconstrained:
             sym_mask = torch.sigmoid(self.mask) if self.use_sigmoid else self.mask
             self.masked_adj = (
-                torch.unsqueeze((sym_mask + sym_mask.t()) / 2, 0) * self.diag_mask
+                torch.unsqueeze((sym_mask + sym_mask.transpose(0, 1)) / 2, 0) * self.diag_mask
             )
         else:
             self.masked_adj = self._masked_adj()
@@ -719,13 +723,15 @@ class ExplainMultiEdgesModule(nn.Module):
                 else:
                     x = x * feat_mask
 
-        ypred, adj_att = self.model(x, self.masked_adj)
+        ypred = self.model(x.unsqueeze(0), self.masked_adj.unsqueeze(0))
+        ''' # We dont use this stuff.
         if self.graph_mode:
             res = nn.Softmax(dim=0)(ypred[0])
         else:
             node_pred = ypred[self.graph_idx, node_idx, :]
             res = nn.Softmax(dim=0)(node_pred)
-        return res, adj_att
+        '''
+        return ypred
 
     def adj_feat_grad(self, node_idx, pred_label_node):
         self.model.zero_grad()
@@ -750,20 +756,38 @@ class ExplainMultiEdgesModule(nn.Module):
         loss.backward()
         return self.adj.grad, self.x.grad
 
-    def loss(self, pred, pred_label, node_idx, epoch):
+    def loss_consistency(self, pred, pred_label, node_idx):
+        """
+        Args:
+            :param pred: prediction made by the current model the current mask Nxself.output_dim
+            :param pred_label: prediction made by the model without the mask N
+            :param node_idx: the node ids used for calculation
+        :return:
+        """
+        # print("The previous model output: ", pred.view(-1, self.model.output_dim)[node_idx].size())
+        # print(pred_label[node_idx].unsqueeze(-1).size())
+        # input()
+        return self.criterion(pred.view(-1, self.model.output_dim)[node_idx].unsqueeze(0),
+                              pred_label.view(-1)[node_idx].unsqueeze(-1).long())
+
+
+    def loss(self, pred, pred_label, graph_idx, node_idx, epoch):
         """
         Args:
             pred: prediction made by current model
             pred_label: the label predicted by the original model.
         """
         mi_obj = False
+        '''
         if mi_obj:
             pred_loss = -torch.sum(pred * torch.log(pred))
         else:
-            pred_label_node = pred_label if self.graph_mode else pred_label[node_idx]
-            gt_label_node = self.label if self.graph_mode else self.label[0][node_idx]
+            # pred_label_node = pred_label if self.graph_mode else pred_label[node_idx]
+            gt_label_node = self.label if self.graph_mode else self.label[graph_idx].squeeze()[node_idx]
             logit = pred[gt_label_node]
             pred_loss = -torch.log(logit)
+            '''
+        pred_loss = self.loss_consistency(pred, pred_label, node_idx)
         # size
         mask = self.mask
         if self.mask_act == "sigmoid":
@@ -799,10 +823,22 @@ class ExplainMultiEdgesModule(nn.Module):
         feat_mask_ent_loss = self.coeffs["feat_ent"] * torch.mean(feat_mask_ent)
 
         # laplacian
-        D = torch.diag(torch.sum(self.masked_adj[0], 0))
+        list_D = []
+        # print(self.masked_adj.size())
+        for j in range(list(self.masked_adj.size())[-1]):
+            list_D.append(torch.diag(
+                            torch.sum(self.masked_adj[:, :, j], 0)
+                            )
+            )
+        D = torch.stack(list_D, -1)
+        # print(D.size(), self.masked_adj.size())
         m_adj = self.masked_adj if self.graph_mode else self.masked_adj[self.graph_idx]
         L = D - m_adj
-        pred_label_t = torch.tensor(pred_label, dtype=torch.float)
+        lap_loss = 0
+        # TODO:
+        '''
+        # pred_label_t = torch.tensor(pred_label, dtype=torch.float)
+
         if self.args.gpu:
             pred_label_t = pred_label_t.cuda()
             L = L.cuda()
@@ -814,7 +850,7 @@ class ExplainMultiEdgesModule(nn.Module):
                 * (pred_label_t @ L @ pred_label_t)
                 / self.adj.numel()
             )
-
+        '''
         # grad
         # adj
         # adj_grad, x_grad = self.adj_feat_grad(node_idx, pred_label_node)

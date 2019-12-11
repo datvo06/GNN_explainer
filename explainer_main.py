@@ -254,6 +254,7 @@ def main():
     # TODO: API should definitely be cleaner
     # Let's define exactly which modes we support
     # We could even move each mode to a different method (even file)
+    print('Node', prog_args.explain_node)
     if prog_args.explain_node is not None:
         explainer.explain(prog_args.explain_node, unconstrained=False)
     elif graph_mode:
