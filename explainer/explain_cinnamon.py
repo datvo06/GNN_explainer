@@ -214,15 +214,16 @@ class ExplainerMultiEdges:
         """
 
         # TODO: Change Draw Function here.
-        pred_all, real_all, masked_adjs = [], [], []
+        # pred_all, real_all, masked_adjs = [], [], []
+        masked_adjs = []
         for i, node_idx in enumerate(node_indices):
 
             # Get explanations for each of the nodes
             masked_adj = self.explain(node_idx, graph_idx=graph_idx)
-            pred, real = self.make_pred_real(masked_adj, node_idx)
+            # pred, real = self.make_pred_real(masked_adj, node_idx)
             masked_adjs.append(masked_adj)
-            pred_all.append(pred)
-            real_all.append(real)
+            # pred_all.append(pred)
+            # real_all.append(real)
 
             bow = data_loader.inp_bow[graph_idx]
             coord = data_loader.inp_cod[graph_idx]
