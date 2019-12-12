@@ -187,6 +187,8 @@ if __name__ == "__main__":
     prog_args = dummyArgs()
     data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
     # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
+    corpus = open("./Invoice_data/corpus.json").read()[1:-2]
+
     prog_args.batch_size = 1
     prog_args.bmname = None
     prog_args.hidden_dim = 500
@@ -316,7 +318,7 @@ if __name__ == "__main__":
     prog_args.multinode_class = 1
 
     # explainer.explain(prog_args.explain_node, unconstrained=False)
-    explainer.explain_nodes_gnn_stats(prog_args.explain_node, prog_args)
+    # explainer.explain_nodes_gnn_stats(prog_args.explain_node, prog_args)
 
     if prog_args.multinode_class >= 0:
         print(cg_dict["label"])
