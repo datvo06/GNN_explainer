@@ -112,6 +112,7 @@ ckpt/
 out/
 results/
 path/
+explain_log/
 
 .idea/
 .vscode/
