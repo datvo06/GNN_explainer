@@ -45,19 +45,22 @@ Tensor = FloatTensor
 class ExplainerMultiEdges:
     def __init__(
         self, model,
-        adj, feat, label,
-        pred, train_idx,
+        # adj, feat, label, pred,
+        data_loader,
+        train_idx,
         args, writer=None, print_training=True,
-        graph_idx=False,
+        # graph_idx=False,
     ):
         self.model = model
         self.model.eval()
-        self.adj = adj
-        self.feat = feat
-        self.label = label
-        self.pred = pred
+        # self.adj = adj
+        # self.feat = feat
+        # self.label = label
+        # self.pred = pred
+        self.data_loader = data_loader
+
         self.train_idx = train_idx
-        self.graph_idx = graph_idx
+        # self.graph_idx = graph_idx
         self.args = args
         self.writer = writer
         self.print_training = print_training
@@ -74,16 +77,29 @@ class ExplainerMultiEdges:
         # we always use all of the nodes since we have self-attention
         # All of the current stuffs included batch, just squeeze...
         node_idx_new = node_idx
-        adj = self.adj.squeeze() # N N L
-        feat = self.feat.squeeze() # N F
-        label = self.label.squeeze().long()
+        # adj = self.adj.squeeze() # N N L
+        # feat = self.feat.squeeze() # N F
+        # label = self.label.squeeze().long()
+
+        adj = self.data_loader[graph_idx]['adj'].squeeze() # N N L
+        feat = self.data_loader[graph_idx]['feats'].squeeze() # N F
+        label = self.data_loader[graph_idx]['label'].squeeze().long()
+
         # print(sub_label)
         x     = torch.tensor(feat, requires_grad=True, dtype=torch.float).to(device)
         '''
         self.pred: matrix, first row is a n_graphs-dimensional vector, each of which contain a list storing the Graph features
         '''
-        pred_label = torch.Tensor(np.argmax(np.array(self.pred[0, graph_idx]), axis=1)).to(device)
-        # print("Graph predicted label: ", np.array(self.pred[0, graph_idx]).shape)
+
+        # TODO: fix the evaluate.
+        # pred_label = torch.Tensor(np.argmax(np.array(self.pred[0, graph_idx]), axis=1)).to(device)
+
+        adj = Variable(adj.float(), requires_grad=False)  # .cuda()
+        h0 = Variable(feat.float())  # .cuda()
+
+        ypred = self.model.forward(h0.to(device).unsqueeze(0), adj.to(device).unsqueeze(0))
+        _, indices = torch.max(ypred, -1)
+        pred_label = indices.to(device)
 
         explainer = ExplainMultiEdgesModule(
             adj=adj,
@@ -92,7 +108,7 @@ class ExplainerMultiEdges:
             label=label,
             args=self.args,
             writer=self.writer,
-            graph_idx=self.graph_idx,
+            # graph_idx=graph_idx,
             # graph_mode=self.graph_mode,
         )
         # The explainer is used to create and maintain the masks
@@ -189,7 +205,10 @@ class ExplainerMultiEdges:
             masked_adj = adj_atts.cpu().detach().numpy() * adj.squeeze()
 
         fname = 'masked_adj_' + io_utils.gen_explainer_prefix(self.args) + (
-                'node_idx_'+str(node_idx)+'graph_idx_'+str(self.graph_idx)+'.npy')
+                'node_idx_'+str(node_idx)+'graph_idx_'+str(graph_idx)+'.npy')
+                # 'node_idx_'+str(node_idx)+'graph_idx_'+str(self.graph_idx)+'.npy')
+
+
         with open(os.path.join(self.args.logdir, fname), 'wb') as outfile:
             np.save(outfile, np.asarray(masked_adj.copy()))
             print("Saved adjacency matrix to ", fname)
@@ -197,8 +216,9 @@ class ExplainerMultiEdges:
 
 
     # NODE EXPLAINER
-    def explain_nodes(self, node_indices, args,
-                      corpus, data_loader, graph_idx=0):
+    def explain_nodes(self, node_indices,
+                      # args, data_loader,
+                      corpus, graph_idx=0):
         """
         Explain nodes
 
@@ -226,14 +246,14 @@ class ExplainerMultiEdges:
             # pred_all.append(pred)
             # real_all.append(real)
 
-            bow = data_loader.inp_bow[graph_idx]
-            coord = data_loader.inp_cod[graph_idx]
+            bow = self.data_loader.inp_bow[graph_idx]
+            coord = self.data_loader.inp_cod[graph_idx]
             coord = coord * 1.1 - 0.1
 
-            adj = data_loader.inp_adj[graph_idx]
+            adj = self.data_loader.inp_adj[graph_idx]
             adj = np.transpose(adj, (0, 2, 1))
 
-            label_y = data_loader.labels[graph_idx]
+            label_y = self.data_loader.labels[graph_idx]
 
             # Number of total Nodes/Textlines in this Graph.
             # N = bow.shape[0]
@@ -313,7 +333,7 @@ class ExplainerMultiEdges:
         #        'align/aligned', epoch=1)
         '''
 
-        return masked_adjs, image
+        return masked_adjs
 
     def explain_nodes_gnn_stats(self, node_indices, args, graph_idx=0, model="exp"):
         masked_adjs = [
@@ -820,7 +840,6 @@ class ExplainMultiEdgesModule(nn.Module):
         # input()
         return self.criterion(pred.view(-1, self.model.output_dim)[node_idx].unsqueeze(0),
                               pred_label.view(-1)[node_idx].unsqueeze(-1).long())
-
 
     def loss(self, pred, pred_label, graph_idx, node_idx, epoch):
         """

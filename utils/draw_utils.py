@@ -78,7 +78,7 @@ def draw_text(img, x, y, w, h, text, color=(255, 255, 255),
     font = get_used_font(h)
     pil_img = Image.fromarray(img)
     draw = ImageDraw.Draw(pil_img)
-    charwidth = int(font.getsize(text)[0]/len(text))
+    charwidth = int(font.getsize(text)[0]/max(len(text), 1))
     if importances is None:
         draw.text(
             (x, y), text, font=font,
