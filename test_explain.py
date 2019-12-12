@@ -339,6 +339,7 @@ if __name__ == "__main__":
         )
         explainer.explain_nodes(node_indices, prog_args,
                                 data_loader=data_loader,
+                                corpus=corpus,
                                 graph_idx=prog_args.graph_idx)
 
     else:
