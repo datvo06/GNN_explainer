@@ -127,6 +127,7 @@ class ExplainerMultiEdges:
         for epoch in range(self.args.num_epochs):
             explainer.zero_grad()
             explainer.optimizer.zero_grad()
+            print("node index new: ", node_idx_new)
             ypred = explainer(node_idx_new, unconstrained=unconstrained)
             loss = explainer.loss(ypred, pred_label, graph_idx, node_idx_new, epoch)
             loss.backward()
@@ -212,7 +213,7 @@ class ExplainerMultiEdges:
         with open(os.path.join(self.args.logdir, fname), 'wb') as outfile:
             np.save(outfile, np.asarray(masked_adj.copy()))
             print("Saved adjacency matrix to ", fname)
-        return masked_adj
+        return masked_adj, explainer.get_node_mask().squeeze().cpu().detach().numpy()
 
 
     # NODE EXPLAINER
@@ -236,13 +237,15 @@ class ExplainerMultiEdges:
 
         # TODO: Change Draw Function here.
         # pred_all, real_all, masked_adjs = [], [], []
+        node_masks = []
         masked_adjs = []
         for i, node_idx in enumerate(node_indices):
 
             # Get explanations for each of the nodes
-            masked_adj = self.explain(node_idx, graph_idx=graph_idx)
+            masked_adj, node_mask = self.explain(node_idx, graph_idx=graph_idx)
             # pred, real = self.make_pred_real(masked_adj, node_idx)
             masked_adjs.append(masked_adj)
+            node_masks.append(node_mask)
             # pred_all.append(pred)
             # real_all.append(real)
 
@@ -263,6 +266,7 @@ class ExplainerMultiEdges:
                                     adj_mats=adj,
                                     node_labels=label_y,
                                     adj_importances=masked_adj,
+                                    # node_importances=node_mask,
                                     word_list=corpus,
                                     cur_node_idx=node_idx
                                     )
@@ -674,6 +678,9 @@ class ExplainMultiEdgesModule(nn.Module):
         self.mask, self.mask_bias = self.construct_edge_mask(
             num_nodes, num_edges, init_strategy=init_strategy
         )
+        self.node_mask, self.node_mask_bias = self.construct_node_mask(
+            num_nodes, init_strategy=init_strategy
+        )
 
         # The feature mask is used to highlight the important features
         self.feat_mask = self.construct_feat_mask(
@@ -718,6 +725,26 @@ class ExplainMultiEdgesModule(nn.Module):
                 # mask[0] = 2
         return mask
 
+    def construct_node_mask(self, num_nodes, init_strategy="normal"):
+        """
+        Args:
+            num_node: number of nodes
+        """
+        mask = nn.Parameter(torch.FloatTensor(num_nodes))
+        mask_bias = nn.Parameter(torch.FloatTensor(num_nodes))
+        if init_strategy == "normal":
+            std = 0.1
+            with torch.no_grad():
+                mask.normal_(1.0, std)
+                mask_bias.normal_(1.0, std)
+        elif init_strategy == "constant":
+            with torch.no_grad():
+                nn.init.constant_(mask, 0.0)
+                nn.init.constant_(mask_bias, 0.0)
+        return mask, mask_bias
+        
+
+
     def construct_edge_mask(self, num_nodes,
                             num_edges,
                             init_strategy="normal", const_val=1.0):
@@ -761,6 +788,15 @@ class ExplainMultiEdgesModule(nn.Module):
             masked_adj += (bias + bias.transpose(0, 1)) / 2
         return masked_adj * self.diag_mask
 
+    def get_node_mask(self):
+        sym_mask = self.node_mask.unsqueeze(-1) + self.node_mask_bias.unsqueeze(-1)
+        if self.mask_act == "sigmoid":
+            sym_mask = torch.sigmoid(sym_mask)
+        elif self.mask_act == "ReLU":
+            sym_mask = nn.ReLU()(sym_mask)
+        return sym_mask
+
+
     def mask_density(self):
         mask_sum = torch.sum(self._masked_adj()).cpu()
         adj_sum = torch.sum(self.adj)
@@ -772,6 +808,9 @@ class ExplainMultiEdgesModule(nn.Module):
             node_idx: the chosen node's label to be explained
         """
         x = self.x.cuda() if self.args.gpu else self.x
+        print(" x size: ", x.size())
+        print(" node mask size: ", self.get_node_mask().size())
+        x = self.get_node_mask() * x # Use boardcasting
 
         if unconstrained:
             sym_mask = torch.sigmoid(self.mask) if self.use_sigmoid else self.mask
@@ -867,7 +906,7 @@ class ExplainMultiEdgesModule(nn.Module):
         # Size loss will make the mask as small as possible
         # in conjunction with the CE bellow, it will draw the mask towards
         # 0, unless the prediction loss pull it back
-        size_loss = self.coeffs["size"] * torch.sum(mask)
+        size_loss = self.coeffs["size"] * (torch.sum(mask) + torch.sum(self.get_node_mask())*mask.size()[1])
 
         # pre_mask_sum = torch.sum(self.feat_mask)
         feat_mask = (
@@ -881,8 +920,12 @@ class ExplainMultiEdgesModule(nn.Module):
         # if mask element ~ 1 i.e, 0.99: loss = ~0 - ~0 = 0
         # if mask element ~0 i.e, 0.01: loss = ~0 - 0 = 0
         # else, if mask element 0.5, loss = -log(0.5) = log(2) (maximum value)
+        node_mask = self.get_node_mask()
+        node_mask_ent = -node_mask*torch.log(node_mask) - (1 - node_mask) * torch.log(1- node_mask)
+
         mask_ent = -mask * torch.log(mask) - (1 - mask) * torch.log(1 - mask)
-        mask_ent_loss = self.coeffs["ent"] * torch.mean(mask_ent)
+        mask_ent_loss = self.coeffs["ent"] * (torch.mean(mask_ent)  + torch.mean(node_mask_ent))
+
 
         # The same for feat mask entropy
         feat_mask_ent = - feat_mask             \

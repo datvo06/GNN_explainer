@@ -60,7 +60,7 @@ def draw_node_bbox(img, bbox, label, importance=1.0):
 
     return draw_bbox(img, bbox[0], bbox[1], bbox[2], bbox[3],
                      colors[label % (len(colors) - 1) + 1 if label > 0 else 0],
-                     min(max(int(5*importance), 1.0), 5))
+                     min(max(int(5*importance), 1), 5))
 
 
 def draw_nodes_bboxs(img, list_bboxs, labels, importances):
@@ -123,7 +123,7 @@ def get_pseudo_text_bow_repr(bows, word_list):
 
 
 def draw_arrow(img, x1, y1, x2, y2, color, thickness=1):
-    # print(x1, y1, x2, y2, color)
+    print(x1, y1, x2, y2, color)
     return cv2.arrowedLine(img, (int(x1), int(y1)),
                            (int(x2), int(y2)), color, max(int(thickness), 1))
 
