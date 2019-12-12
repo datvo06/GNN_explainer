@@ -185,8 +185,8 @@ if __name__ == "__main__":
     # prog_args = arg_parse()
 
     prog_args = dummyArgs()
-    # data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
-    data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
+    data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
+    # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
     prog_args.batch_size = 1
     prog_args.bmname = None
     prog_args.hidden_dim = 500
@@ -196,7 +196,8 @@ if __name__ == "__main__":
     prog_args.ckptdir = "ckpt"
     prog_args.method = "GCN"
     prog_args.name = "dummy name"
-    prog_args.num_epochs = 200
+    #prog_args.num_epochs = 200
+    prog_args.num_epochs = 2
     prog_args.train_ratio = 0.8
     prog_args.test_ratio = 0.1
     prog_args.gpu = torch.cuda.is_available()
@@ -204,11 +205,12 @@ if __name__ == "__main__":
 
     prog_args.writer = None
     prog_args.logdir = os.path.join(os.getcwd(), "explain_log")
+    prog_args.explainer_suffix = "_explained"
 
     # Load a model checkpoint
     ckpt = io_utils.load_ckpt(prog_args)
     cg_dict = ckpt["cg"] # get computation graph
-    input_dim = cg_dict["feat"].detach().numpy().shape[2]
+    input_dim = cg_dict["feat"].cpu().detach().numpy().shape[2]
 
     # cg_dict["pred"][0][sample_idx][textline_idx] = kv last layer output.
     num_classes = len(cg_dict["pred"][0][0][0])
@@ -289,7 +291,7 @@ if __name__ == "__main__":
     prog_args.graph_idx = 0
     prog_args.mask_act = "sigmoid"  # "ReLU"
     prog_args.opt = 'adam'
-    prog_args.lr = 0.00001
+    prog_args.lr = 0.0001
     prog_args.opt_scheduler = 'none'
 
     explainer = explain.ExplainerMultiEdges(

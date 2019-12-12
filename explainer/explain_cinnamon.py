@@ -66,25 +66,20 @@ class ExplainerMultiEdges:
     ):
         """Explain a single node prediction
         """
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         # index of the query node in the new adj
         # we always use all of the nodes since we have self-attention
+        # All of the current stuffs included batch, just squeeze...
         node_idx_new = node_idx
-        sub_adj = self.adj[graph_idx]
-        sub_feat = self.feat[graph_idx, :]
-        sub_label = self.label[graph_idx].squeeze()
+        adj = self.adj.squeeze() # N N L
+        feat = self.feat.squeeze() # N F
+        label = self.label.squeeze().long()
         # print(sub_label)
-        neighbors = np.asarray(range(self.adj.shape[0]))
-
-        sub_adj = np.expand_dims(sub_adj, axis=0)
-        sub_feat = np.expand_dims(sub_feat, axis=0)
-
-        adj   = torch.tensor(sub_adj, dtype=torch.float)
-        x     = torch.tensor(sub_feat, requires_grad=True, dtype=torch.float)
-        label = torch.tensor(sub_label, dtype=torch.long)
+        x     = torch.tensor(feat, requires_grad=True, dtype=torch.float).to(device)
         '''
         self.pred: matrix, first row is a n_graphs-dimensional vector, each of which contain a list storing the Graph features
         '''
-        pred_label = torch.Tensor(np.argmax(np.array(self.pred[0, graph_idx]), axis=1))
+        pred_label = torch.Tensor(np.argmax(np.array(self.pred[0, graph_idx]), axis=1)).to(device)
         # print("Graph predicted label: ", np.array(self.pred[0, graph_idx]).shape)
 
         explainer = ExplainMultiEdgesModule(
@@ -133,7 +128,7 @@ class ExplainerMultiEdges:
                     "; pred: ",
                     ypred,
                 )
-            single_subgraph_label = sub_label.squeeze()
+            single_subgraph_label = label.squeeze()
 
             if self.writer is not None:
                 self.writer.add_scalar("mask/density", mask_density, epoch)
@@ -163,8 +158,8 @@ class ExplainerMultiEdges:
                         )
                         node_adj_att = node_adj_att[0].cpu().detach().numpy()
                         G = io_utils.denoise_graph(
-                            node_adj_att,
-                            node_idx_new,
+                            node_adj_att.cpu().detach().numpy(),
+                            node_idx_new.cpu().detach().numpu(),
                             threshold=3.8,  # threshold_num=20,
                             max_component=True,
                         )
@@ -182,12 +177,13 @@ class ExplainerMultiEdges:
 
         print("finished training in ", time.time() - begin_time)
         if model == "exp":
+            print(explainer.masked_adj.size())
             masked_adj = (
-                explainer.masked_adj[0].cpu().detach().numpy() * sub_adj.squeeze()
+                explainer.masked_adj.cpu().detach().numpy() * adj.squeeze().cpu().detach().numpy()
             )
         else:
             adj_atts = nn.functional.sigmoid(adj_atts).squeeze()
-            masked_adj = adj_atts.cpu().detach().numpy() * sub_adj.squeeze()
+            masked_adj = adj_atts.cpu().detach().numpy() * adj.squeeze()
 
         fname = 'masked_adj_' + io_utils.gen_explainer_prefix(self.args) + (
                 'node_idx_'+str(node_idx)+'graph_idx_'+str(self.graph_idx)+'.npy')
@@ -211,6 +207,7 @@ class ExplainerMultiEdges:
         masked_adjs = [
             self.explain(node_idx, graph_idx=graph_idx) for node_idx in node_indices
         ]
+        '''
         ref_idx = node_indices[0]
         ref_adj = masked_adjs[0]
         curr_idx = node_indices[1]
@@ -219,7 +216,9 @@ class ExplainerMultiEdges:
         new_curr_idx, _, curr_feat, _, _ = self.extract_neighborhood(curr_idx)
 
         # Thresh hold the graph
-        G_ref = io_utils.denoise_graph(ref_adj, new_ref_idx, ref_feat, threshold=0.1)
+        G_ref = io_utils.denoise_graph(
+                ref_adj.cpu().detach().numpy(),
+                new_ref_idx, ref_feat.cpu().detach().numpy(), threshold=0.1)
         denoised_ref_feat = np.array(
             [G_ref.nodes[node]["feat"] for node in G_ref.nodes()]
         )
@@ -267,6 +266,7 @@ class ExplainerMultiEdges:
         # io_utils.log_graph(self.writer, aligned_adj.cpu().detach().numpy(), new_curr_idx,
         #        'align/aligned', epoch=1)
 
+        '''
         return masked_adjs
 
 
@@ -282,7 +282,8 @@ class ExplainerMultiEdges:
         pred_all = []
         real_all = []
         for i, idx in enumerate(node_indices):
-            new_idx, _, feat, _, _ = self.extract_neighborhood(idx)
+            new_idx = idx
+            feat = self.feat.squeeze()
             G = io_utils.denoise_graph(masked_adjs[i], new_idx, feat, threshold_num=20)
             pred, real = self.make_pred_real(masked_adjs[i], new_idx)
             pred_all.append(pred)
