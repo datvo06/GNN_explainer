@@ -213,6 +213,11 @@ if __name__ == "__main__":
     # Load a configuration
     # prog_args = arg_parse()
 
+    parser = argparse.ArgumentParser(description="GNN Explainer arguments.")
+    parser.add_argument("-i", "--graph_idx", type=int, default=7,
+                        help="Graph sample index.")
+    args = parser.parse_args()
+
     prog_args = dummyArgs()
     data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
     corpus = open("./Invoice_data/corpus.json").read()[1:-2]
@@ -321,7 +326,7 @@ if __name__ == "__main__":
 
     # Create explainer
     # TODO: Choose graph_idx.
-    prog_args.graph_idx = 77
+    prog_args.graph_idx = args.graph_idx
     prog_args.mask_act = "sigmoid"  # "ReLU"
     prog_args.opt = 'adam'
     prog_args.lr = 0.003
