@@ -314,7 +314,8 @@ if __name__ == "__main__":
     # We could even move each mode to a different method (even file)
 
     # TODO:
-    prog_args.explain_node = [i for i in range(len(cg_dict['label'][prog_args.graph_idx])) if cg_dict['label'][prog_args.graph_idx][i] > 0]
+    prog_args.explain_node = [i for i in range(len(cg_dict['label'][prog_args.graph_idx]))
+                                if cg_dict['label'][prog_args.graph_idx][i] > 0]
     prog_args.multinode_class = 1
 
     # explainer.explain(prog_args.explain_node, unconstrained=False)
@@ -325,19 +326,21 @@ if __name__ == "__main__":
         # only run for nodes with label specified by multinode_class
         labels = cg_dict["label"][0]  # already numpy matrix
 
-        node_indices = []
-        for i, l in enumerate(labels):
-            if len(node_indices) > 4:
-                break
-            if l == prog_args.multinode_class:
-                node_indices.append(i)
+        # node_indices = []
+        # for i, l in enumerate(labels):
+        #     if len(node_indices) > 4:
+        #         break
+        #     if l == prog_args.multinode_class:
+        #         node_indices.append(i)
+        
         print(
             "Node indices for label ",
             prog_args.multinode_class,
             " : ",
-            node_indices,
+            # node_indices,
+            prog_args.explain_node
         )
-        explainer.explain_nodes(node_indices, prog_args,
+        explainer.explain_nodes(node_indices=prog_args.explain_node, args=prog_args,
                                 data_loader=data_loader,
                                 corpus=corpus,
                                 graph_idx=prog_args.graph_idx)
