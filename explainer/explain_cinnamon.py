@@ -34,6 +34,7 @@ import utils.train_utils as train_utils
 import utils.graph_utils as graph_utils
 
 from utils.draw_utils import visualize_graph
+import cv2
 
 
 use_cuda = torch.cuda.is_available()
@@ -227,25 +228,29 @@ class ExplainerMultiEdges:
 
             bow = data_loader.inp_bow[graph_idx]
             coord = data_loader.inp_cod[graph_idx]
-            label_y = data_loader.labels[graph_idx]
-            adj = data_loader.inp_adj[graph_idx]
+            coord = coord * 1.1 - 0.1
 
-            N = bow.shape[0]  # Number of total Nodes/Textlines in this Graph.
+            adj = data_loader.inp_adj[graph_idx]
+            adj = np.transpose(adj, (0, 2, 1))
+
+            label_y = data_loader.labels[graph_idx]
+
+            # Number of total Nodes/Textlines in this Graph.
+            # N = bow.shape[0]
 
             image = visualize_graph(list_bows=bow,
                                     list_positions=(coord * 1000).astype(int),
                                     adj_mats=adj,
                                     node_labels=label_y,
-                                    node_importances=np.random.random(N),
-                                    # node_importances=N*[4*[1]],
-                                    position_importances=np.random.random((N, 4, 1)),
-                                    # position_importances=N*[1],
-                                    # bow_importances=N*[bow.shape[-1] * [1]],
-                                    bow_importances=np.random.random((N, bow.shape[-1])),
                                     adj_importances=masked_adj,
                                     word_list=corpus
                                     )
 
+            try: os.makedirs(os.path.join(self.args.logdir, "Graph_{}".format(graph_idx)))
+            except FileExistsError: pass
+
+            save_path = os.path.join(self.args.logdir, "Graph_{}/node_{}.png".format(graph_idx, node_idx))
+            cv2.imwrite(save_path, image, [cv2.IMWRITE_PNG_COMPRESSION, 5])
 
         '''
         ref_idx = node_indices[0]
@@ -306,7 +311,6 @@ class ExplainerMultiEdges:
         # io_utils.log_graph(self.writer, aligned_adj.cpu().detach().numpy(), new_curr_idx,
         #        'align/aligned', epoch=1)
         '''
-
 
         return masked_adjs, image
 

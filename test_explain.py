@@ -185,9 +185,10 @@ if __name__ == "__main__":
     # prog_args = arg_parse()
 
     prog_args = dummyArgs()
-    data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
-    # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
-    corpus = open("./Invoice_data/corpus.json").read()[1:-2]
+    # data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
+    # corpus = open("./Invoice_data/corpus.json").read()[1:-2]
+    data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
+    corpus = open("../Invoice_k_fold/save_features/all/corpus.json").read()[1:-2]
 
     prog_args.batch_size = 1
     prog_args.bmname = None
@@ -199,7 +200,7 @@ if __name__ == "__main__":
     prog_args.method = "GCN"
     prog_args.name = "dummy name"
     #prog_args.num_epochs = 200
-    prog_args.num_epochs = 2
+    prog_args.num_epochs = 700
     prog_args.train_ratio = 0.8
     prog_args.test_ratio = 0.1
     prog_args.gpu = torch.cuda.is_available()
@@ -332,7 +333,7 @@ if __name__ == "__main__":
         #         break
         #     if l == prog_args.multinode_class:
         #         node_indices.append(i)
-        
+
         print(
             "Node indices for label ",
             prog_args.multinode_class,

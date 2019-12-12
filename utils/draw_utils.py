@@ -214,12 +214,13 @@ def draw_edges(img, list_bboxs, adj_mats, adj_importances_mask):
 
 def visualize_graph(list_bows, list_positions,
                     adj_mats, node_labels,
-                    node_importances,
-                    position_importances,
-                    bow_importances,
-                    adj_importances,
+                    node_importances=None,
+                    position_importances=None,
+                    bow_importances=None,
+                    adj_importances=None,
                     orig_img=None,
-                    word_list=None, is_text=False):
+                    word_list=None,
+                    is_text=False):
     """
     Args:
         list_bows: the bag of words features
@@ -231,15 +232,26 @@ def visualize_graph(list_bows, list_positions,
         Node importances: N
         position_importances: Nx4
         bow importances: NxBoW
+        adj_importances: NxNxE
 
     """
+    N = list_bows.shape[0]
+
+    if node_importances is None:
+        node_importances = np.ones(N) * 0.3
+    if position_importances is None:
+        position_importances = np.ones((N, 4, 1)) * 0.3
+    if bow_importances is None:
+        bow_importances = np.ones(list_bows.shape) * 0.3
+    if adj_importances is None:
+        adj_importances = np.ones(adj_mats.shape) * 0.3
+
     # First, get the texts for all bows
     list_bows = list_bows.astype(int)
     list_texts = [str(i for i in range(len(bow)) if bow[i] != 0)
                   for bow in list_bows]
     bow_dict = dict([(word, i) for i, word in enumerate(word_list)]
                     ) if word_list is not None else None
-
 
     if not is_text and word_list is not None:
         list_texts = [get_pseudo_text_bow_repr(bow, word_list)
