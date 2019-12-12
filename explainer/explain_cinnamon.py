@@ -33,6 +33,8 @@ import utils.io_utils as io_utils
 import utils.train_utils as train_utils
 import utils.graph_utils as graph_utils
 
+from utils.draw_utils import visualize_graph
+
 
 use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
@@ -194,19 +196,56 @@ class ExplainerMultiEdges:
 
 
     # NODE EXPLAINER
-    def explain_nodes(self, node_indices, args, graph_idx=0):
+    def explain_nodes(self, node_indices, args,
+                      corpus, data_loader, graph_idx=0):
         """
         Explain nodes
 
         Args:
-            - node_indices  :  Indices of the nodes to be explained
-            - args          :  Program arguments (mainly for logging paths)
-            - graph_idx     :  Index of the graph to explain the nodes from (if multiple).
+
+        :param node_indices : Indices of the nodes to be explained
+        :param args         : Program arguments (mainly for logging paths)
+        :param corpus       : String, the Bag of Words character correspond to the GCN input.
+        :param data_loader  : The data_loader for PyTorch.
+        :param graph_idx    : Index of the graph to explain the nodes from (if multiple).
+
+        :return:
+
         """
-        # First, get all explanations for each of the nodes
-        masked_adjs = [
-            self.explain(node_idx, graph_idx=graph_idx) for node_idx in node_indices
-        ]
+
+        # TODO: Change Draw Function here.
+        pred_all, real_all, masked_adjs = [], [], []
+        for i, node_idx in enumerate(node_indices):
+
+            # Get explanations for each of the nodes
+            masked_adj = self.explain(node_idx, graph_idx=graph_idx)
+            pred, real = self.make_pred_real(masked_adj, node_idx)
+            masked_adjs.append(masked_adj)
+            pred_all.append(pred)
+            real_all.append(real)
+
+            bow = data_loader.inp_bow[graph_idx]
+            coord = data_loader.inp_cod[graph_idx]
+            label_y = data_loader.labels[graph_idx]
+            adj = data_loader.inp_adj[graph_idx]
+
+            N = bow.shape[0]  # Number of total Nodes/Textlines in this Graph.
+
+            image = visualize_graph(list_bows=bow,
+                                    list_positions=(coord * 1000).astype(int),
+                                    adj_mats=adj,
+                                    node_labels=label_y,
+                                    node_importances=np.random.random(N),
+                                    # node_importances=N*[4*[1]],
+                                    position_importances=np.random.random((N, 4, 1)),
+                                    # position_importances=N*[1],
+                                    # bow_importances=N*[bow.shape[-1] * [1]],
+                                    bow_importances=np.random.random((N, bow.shape[-1])),
+                                    adj_importances=masked_adj,
+                                    word_list=corpus
+                                    )
+
+
         '''
         ref_idx = node_indices[0]
         ref_adj = masked_adjs[0]
@@ -265,10 +304,10 @@ class ExplainerMultiEdges:
 
         # io_utils.log_graph(self.writer, aligned_adj.cpu().detach().numpy(), new_curr_idx,
         #        'align/aligned', epoch=1)
-
         '''
-        return masked_adjs
 
+
+        return masked_adjs, image
 
     def explain_nodes_gnn_stats(self, node_indices, args, graph_idx=0, model="exp"):
         masked_adjs = [
@@ -281,13 +320,19 @@ class ExplainerMultiEdges:
         adjs = []
         pred_all = []
         real_all = []
+
         for i, idx in enumerate(node_indices):
+
             new_idx = idx
-            feat = self.feat.squeeze()
-            G = io_utils.denoise_graph(masked_adjs[i], new_idx, feat, threshold_num=20)
             pred, real = self.make_pred_real(masked_adjs[i], new_idx)
             pred_all.append(pred)
             real_all.append(real)
+
+            '''
+            feat = self.feat.squeeze()
+            G = io_utils.denoise_graph(masked_adjs[i], new_idx, feat, threshold_num=20)
+            
+            
             denoised_feat = np.array([G.nodes[node]["feat"] for node in G.nodes()])
             denoised_adj = nx.to_numpy_matrix(G)
             graphs.append(G)
@@ -299,20 +344,19 @@ class ExplainerMultiEdges:
                 "graph/{}_{}_{}".format(self.args.dataset, model, i),
                 identify_self=True,
             )
+            '''
 
         pred_all = np.concatenate((pred_all), axis=0)
         real_all = np.concatenate((real_all), axis=0)
-
         auc_all = roc_auc_score(real_all, pred_all)
+
         precision, recall, thresholds = precision_recall_curve(real_all, pred_all)
 
         plt.switch_backend("agg")
         plt.plot(recall, precision)
         plt.savefig("log/pr/pr_" + self.args.dataset + "_" + model + ".png")
-
         plt.close()
 
-        auc_all = roc_auc_score(real_all, pred_all)
         precision, recall, thresholds = precision_recall_curve(real_all, pred_all)
 
         plt.switch_backend("agg")

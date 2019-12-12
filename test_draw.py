@@ -30,7 +30,7 @@ if __name__ == '__main__':
         os.path.join(features_folder, pickle_path)
     )
     corpus = open(os.path.join(features_folder, bow_path)).read()[1:-2]
-    class_kv = preprocess_class(os.path.join(features_folder, class_path))
+    # class_kv = preprocess_class(os.path.join(features_folder, class_path))
 
     i = 0
     adj = input_data['HeuristicGraphAdjMat'][i]

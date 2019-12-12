@@ -205,11 +205,11 @@ if __name__ == "__main__":
 
     prog_args.writer = None
     prog_args.logdir = os.path.join(os.getcwd(), "explain_log")
-    prog_args.explainer_suffix = "_explained"
+    prog_args.explainer_suffix = "explained_"
 
     # Load a model checkpoint
     ckpt = io_utils.load_ckpt(prog_args)
-    cg_dict = ckpt["cg"] # get computation graph
+    cg_dict = ckpt["cg"]  # get computation graph
     input_dim = cg_dict["feat"].cpu().detach().numpy().shape[2]
 
     # cg_dict["pred"][0][sample_idx][textline_idx] = kv last layer output.
@@ -335,7 +335,9 @@ if __name__ == "__main__":
             " : ",
             node_indices,
         )
-        explainer.explain_nodes(node_indices, prog_args)
+        explainer.explain_nodes(node_indices, prog_args,
+                                data_loader=data_loader,
+                                graph_idx=prog_args.graph_idx)
 
     else:
         # explain a set of nodes
