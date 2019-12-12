@@ -128,8 +128,8 @@ class ExplainerMultiEdges:
                     loss.item(),
                     "; mask density: ",
                     mask_density.item(),
-                    "; pred: ",
-                    ypred,
+                    # "; pred: ",
+                    # ypred,
                 )
             single_subgraph_label = label.squeeze()
 

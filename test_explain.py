@@ -199,7 +199,7 @@ if __name__ == "__main__":
     prog_args.ckptdir = "ckpt"
     prog_args.method = "GCN"
     prog_args.name = "dummy name"
-    #prog_args.num_epochs = 200
+    # prog_args.num_epochs = 200
     prog_args.num_epochs = 700
     prog_args.train_ratio = 0.8
     prog_args.test_ratio = 0.1
@@ -294,7 +294,7 @@ if __name__ == "__main__":
     prog_args.graph_idx = 0
     prog_args.mask_act = "sigmoid"  # "ReLU"
     prog_args.opt = 'adam'
-    prog_args.lr = 0.0001
+    prog_args.lr = 0.003
     prog_args.opt_scheduler = 'none'
 
     explainer = explain.ExplainerMultiEdges(

@@ -207,7 +207,7 @@ def draw_edges(img, list_bboxs, adj_mats, adj_importances_mask):
                     bbox_centers[j][0], bbox_centers[j][1],
                     get_colors_list_edges()[
                         k % len(get_colors_list_edges())],
-                    2.5*(adj_importances_mask[i, j, 2*k] +
+                    10*(adj_importances_mask[i, j, 2*k] +
                          adj_importances_mask[i, j, 2*k+1]))
     return img
 
