@@ -326,66 +326,55 @@ if __name__ == "__main__":
 
     # Create explainer
     # TODO: Choose graph_idx.
-    prog_args.graph_idx = args.graph_idx
+
     prog_args.mask_act = "sigmoid"  # "ReLU"
     prog_args.opt = 'adam'
     prog_args.lr = 0.003
     prog_args.opt_scheduler = 'none'
 
-    explainer = explain.ExplainerMultiEdges(
-        model=model,
-        # adj=cg_dict["adj"],
-        # feat=cg_dict["feat"],
-        # label=cg_dict["label"],
-        # pred=cg_dict["pred"],
-        train_idx=cg_dict["train_idx"],
-        args=prog_args,
-        writer=writer,
-        print_training=True,
-        data_loader=data_loader
-        # graph_idx=prog_args.graph_idx,
-    )
+    for i in range(len(data_loader)):
+        try:
+            prog_args.graph_idx = i
+            explainer = explain.ExplainerMultiEdges(
+                model=model,
+                # adj=cg_dict["adj"],
+                # feat=cg_dict["feat"],
+                # label=cg_dict["label"],
+                # pred=cg_dict["pred"],
+                train_idx=cg_dict["train_idx"],
+                args=prog_args,
+                writer=writer,
+                print_training=True,
+                data_loader=data_loader
+                # graph_idx=prog_args.graph_idx,
+            )
 
-    # TODO: API should definitely be cleaner
-    # Let's define exactly which modes we support
-    # We could even move each mode to a different method (even file)
+            # TODO: API should definitely be cleaner
+            # Let's define exactly which modes we support
+            # We could even move each mode to a different method (even file)
 
-    # TODO:
-    prog_args.explain_node = [i for i in range(len(data_loader.labels[prog_args.graph_idx]))
-                                    if data_loader.labels[prog_args.graph_idx][i] > 0]
-    prog_args.multinode_class = 1
+            # TODO:
+            prog_args.explain_node = [i for i in range(len(data_loader.labels[prog_args.graph_idx]))
+                                            if data_loader.labels[prog_args.graph_idx][i] > 0]
+            prog_args.multinode_class = 1
 
-    # explainer.explain(prog_args.explain_node, unconstrained=False)
-    # explainer.explain_nodes_gnn_stats(prog_args.explain_node, prog_args)
+            if prog_args.multinode_class >= 0:
+                print(cg_dict["label"])
+                # only run for nodes with label specified by multinode_class
+                labels = cg_dict["label"][0]  # already numpy matrix
 
-    if prog_args.multinode_class >= 0:
-        print(cg_dict["label"])
-        # only run for nodes with label specified by multinode_class
-        labels = cg_dict["label"][0]  # already numpy matrix
-
-        # node_indices = []
-        # for i, l in enumerate(labels):
-        #     if len(node_indices) > 4:
-        #         break
-        #     if l == prog_args.multinode_class:
-        #         node_indices.append(i)
-
-        print(
-            "Node indices for label ",
-            prog_args.multinode_class,
-            " : ",
-            # node_indices,
-            prog_args.explain_node
-        )
-        explainer.explain_nodes(node_indices=prog_args.explain_node,
-                                # args=prog_args,
-                                # data_loader=data_loader,
-                                corpus=corpus,
-                                graph_idx=prog_args.graph_idx)
-
-    # else:
-        # explain a set of nodes
-        # masked_adj = explainer.explain_nodes_gnn_stats(
-        #     range(400, 700, 5), prog_args
-        # )
+                print(
+                    "Node indices for label ",
+                    prog_args.multinode_class,
+                    " : ",
+                    # node_indices,
+                    prog_args.explain_node
+                )
+                explainer.explain_nodes(node_indices=prog_args.explain_node,
+                                        # args=prog_args,
+                                        # data_loader=data_loader,
+                                        corpus=corpus,
+                                        graph_idx=prog_args.graph_idx)
+        except:
+            continue
 

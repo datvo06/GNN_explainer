@@ -808,9 +808,11 @@ class ExplainMultiEdgesModule(nn.Module):
             node_idx: the chosen node's label to be explained
         """
         x = self.x.cuda() if self.args.gpu else self.x
+        '''
         print(" x size: ", x.size())
         print(" node mask size: ", self.get_node_mask().size())
         x = self.get_node_mask() * x # Use boardcasting
+        '''
 
         if unconstrained:
             sym_mask = torch.sigmoid(self.mask) if self.use_sigmoid else self.mask
@@ -906,7 +908,8 @@ class ExplainMultiEdgesModule(nn.Module):
         # Size loss will make the mask as small as possible
         # in conjunction with the CE bellow, it will draw the mask towards
         # 0, unless the prediction loss pull it back
-        size_loss = self.coeffs["size"] * (torch.sum(mask) + torch.sum(self.get_node_mask())*mask.size()[1])
+        # size_loss = self.coeffs["size"] * (torch.sum(mask) + torch.sum(self.get_node_mask())*mask.size()[1])
+        size_loss = self.coeffs["size"] * (torch.sum(mask))
 
         # pre_mask_sum = torch.sum(self.feat_mask)
         feat_mask = (
@@ -920,11 +923,13 @@ class ExplainMultiEdgesModule(nn.Module):
         # if mask element ~ 1 i.e, 0.99: loss = ~0 - ~0 = 0
         # if mask element ~0 i.e, 0.01: loss = ~0 - 0 = 0
         # else, if mask element 0.5, loss = -log(0.5) = log(2) (maximum value)
+        '''
         node_mask = self.get_node_mask()
         node_mask_ent = -node_mask*torch.log(node_mask) - (1 - node_mask) * torch.log(1- node_mask)
+        '''
 
         mask_ent = -mask * torch.log(mask) - (1 - mask) * torch.log(1 - mask)
-        mask_ent_loss = self.coeffs["ent"] * (torch.mean(mask_ent)  + torch.mean(node_mask_ent))
+        mask_ent_loss = self.coeffs["ent"] * (torch.mean(mask_ent))#  + torch.mean(node_mask_ent))
 
 
         # The same for feat mask entropy
