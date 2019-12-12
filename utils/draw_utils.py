@@ -150,18 +150,34 @@ def draw_position_feature_importances(img, list_bboxs, position_importances):
     return img
 
 
-def draw_nodes(img, list_texts, list_bboxs, node_labels,
+def draw_nodes(img, list_texts, list_bboxs,
+               node_labels,
                node_importances,
                position_importances,
                bow_importances,
-               bow_dict):
+               bow_dict,
+               cur_node_idx
+               ):
     """
     Args:
+
+        list_bboxs:
+
+        cur_node_idx: Which node to fill color.
+
         Node importances: N
         position_importances: N
         bow importances: NxBoW
         bow_dict: dict mapping from char to feat index
     """
+
+    # Fill the current Node explained.
+    if cur_node_idx is not None:
+        x, y, w, h = list_bboxs[cur_node_idx]
+        img = draw_bbox(img, x, y, w, h,
+                        color=(255, 125, 125),
+                        thickness=cv2.FILLED)
+
     # First, draw the nodes based on the importances
     img = draw_nodes_bboxs(img, list_bboxs, node_labels, node_importances)
 
@@ -205,15 +221,14 @@ def draw_edges(img, list_bboxs, adj_mats, adj_importances_mask):
                     img,
                     bbox_centers[i][0], bbox_centers[i][1],
                     bbox_centers[j][0], bbox_centers[j][1],
-                    get_colors_list_edges()[
-                        k % len(get_colors_list_edges())],
-                    10*(adj_importances_mask[i, j, 2*k] +
-                         adj_importances_mask[i, j, 2*k+1]))
+                    get_colors_list_edges()[k % len(get_colors_list_edges())],
+                    thickness=7*(adj_importances_mask[i, j, 2*k] + adj_importances_mask[i, j, 2*k+1]))
     return img
 
 
 def visualize_graph(list_bows, list_positions,
                     adj_mats, node_labels,
+                    cur_node_idx=None,
                     node_importances=None,
                     position_importances=None,
                     bow_importances=None,
@@ -268,7 +283,7 @@ def visualize_graph(list_bows, list_positions,
     img = draw_nodes(
                 img, list_texts, list_positions,
                 node_labels, node_importances, position_importances,
-                bow_importances, bow_dict)
+                bow_importances, bow_dict, cur_node_idx)
     # then, draw the edges
     # TODO:
     img = draw_edges(img, list_positions, adj_mats,

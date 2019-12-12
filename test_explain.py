@@ -199,8 +199,8 @@ if __name__ == "__main__":
     prog_args.ckptdir = "ckpt"
     prog_args.method = "GCN"
     prog_args.name = "dummy name"
-    # prog_args.num_epochs = 200
-    prog_args.num_epochs = 700
+    prog_args.num_epochs = 20
+    # prog_args.num_epochs = 700
     prog_args.train_ratio = 0.8
     prog_args.test_ratio = 0.1
     prog_args.gpu = torch.cuda.is_available()

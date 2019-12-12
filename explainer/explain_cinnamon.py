@@ -243,7 +243,8 @@ class ExplainerMultiEdges:
                                     adj_mats=adj,
                                     node_labels=label_y,
                                     adj_importances=masked_adj,
-                                    word_list=corpus
+                                    word_list=corpus,
+                                    cur_node_idx=node_idx
                                     )
 
             try: os.makedirs(os.path.join(self.args.logdir, "Graph_{}".format(graph_idx)))
