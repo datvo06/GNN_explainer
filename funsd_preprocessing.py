@@ -16,25 +16,24 @@ def normalize_pos_feats(list_bboxs, clamp_min=0.1):
     list_bboxs = np.array(list_bboxs).astype('float') # expected to be Nx4
     min_x = np.min(list_bboxs[:, 0])
     min_y = np.min(list_bboxs[:, 1])
-    max_x = np.max(list_bboxs[:, 0] + list_bboxs[:, 2] - 1)
-    max_y = np.max(list_bboxs[:, 1] + list_bboxs[:, 3] - 1)
-    list_bboxs[:, 0] = (list_bboxs[:, 0] - min_x + clamp_min)/(
-        max_x - min_x + clamp_min)
+    max_x = np.max(list_bboxs[:, 0] + list_bboxs[:, 2])
+    max_y = np.max(list_bboxs[:, 1] + list_bboxs[:, 3])
+    list_bboxs[:, 0] = (list_bboxs[:, 0] - min_x)/(
+        max_x - min_x)
 
-    list_bboxs[:, 1] = list_bboxs[:, 1] - min_y + clamp_min/(
-        max_x - min_x + clamp_min)
+    list_bboxs[:, 1] = (list_bboxs[:, 1] - min_y)/(
+        max_x - min_x)
 
-    list_bboxs[:, 2] = (list_bboxs[:, 2] + clamp_min)/(
-        max_x - min_x + clamp_min)
-    list_bboxs[:, 3] = (list_bboxs[:, 3] + clamp_min)/(
-        max_y - min_y + clamp_min)
+    list_bboxs[:, 2] = (list_bboxs[:, 2])/(
+        max_x - min_x)
+    list_bboxs[:, 3] = (list_bboxs[:, 3])/(max_y - min_y)
+    list_bboxs = (list_bboxs + clamp_min)/(clamp_min+1.0)
     return list_bboxs
 
 
-if __name__ == '__main__':
+def get_preprocessed_list(dirpath):
     data_preprocessed_list = []
-    for json_filename in glob.glob(
-            "dataset/training_data/annotations/*.json"):
+    for json_filename in glob.glob(os.path.join(dirpath, "*.json")):
         list_bboxs = []
         list_ocrs = []
         list_labels = []
@@ -61,5 +60,12 @@ if __name__ == '__main__':
         data_dict['labels'] = list_labels
         data_dict['link'] = list_linking
         data_preprocessed_list.append(data_dict)
-    pickle.dump(data_preprocessed_list,
-                open('funsd_preprocess.pkl', 'wb'))
+    return data_preprocessed_list
+
+if __name__ == '__main__':
+    pickle.dump(get_preprocessed_list(
+        "dataset/training_data/annotations/"),
+        open('funsd_preprocess_train.pkl', 'wb'))
+    pickle.dump(get_preprocessed_list(
+        "dataset/testing_data/annotations/"),
+        open('funsd_preprocess_test.pkl', 'wb'))
