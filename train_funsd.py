@@ -3,6 +3,7 @@ import torch, pickle, time, matplotlib
 from torch.autograd import Variable
 import torch.nn as nn
 from torch.utils.data import Dataset
+import os
 
 
 import numpy as np
@@ -33,7 +34,7 @@ class FunsdDataLoader(Dataset):
 
             json.dump(self.labels, open('labels', 'w'))
         else:
-            self.labels = labels
+            self.labels = labels_dict
         for each_dict in self.inp_list:
             each_dict['labels'] = np.array(
                 [self.labels[label]
@@ -47,8 +48,9 @@ class FunsdDataLoader(Dataset):
         return {
             "adj": torch.Tensor(self.inp_list[idx]['adj_mats']).unsqueeze(0),
             "feats": torch.Tensor(np.concatenate(
-                (self.inp_list[idx]['transformer_feature'],
-                 self.inp_list[idx]['pos_feats']), -1)).unsqueeze(0),
+               (self.inp_list[idx]['transformer_feature'],
+                self.inp_list[idx]['pos_feats']), -1)).unsqueeze(0),
+            # "feats": torch.Tensor(self.inp_list[idx]['pos_feats']).unsqueeze(0),
             "label": torch.Tensor(self.inp_list[idx]['labels']).unsqueeze(0)
         }
 
@@ -129,7 +131,7 @@ def train(dataset, model_instance, args, same_feat=True,
             best_val_result["epoch"] = epoch
             best_val_result["loss"] = avg_loss
         if test_dataset is not None:
-            test_result = evaluate(test_dataset, model_instance, args, name="Test")
+            test_result = evaluate(test_dataset, model_instance, args, testing=True, name="Test")
             test_result["epoch"] = epoch
         if writer is not None:
             writer.add_scalar("acc/train_acc", result["acc"], epoch)
@@ -179,7 +181,7 @@ def train(dataset, model_instance, args, same_feat=True,
     return model_instance, val_accs
 
 
-def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
+def evaluate(dataset, model, args, name="Validation", testing=False, max_num_examples=None):
     model.eval()
 
     labels = []
@@ -204,10 +206,14 @@ def evaluate(dataset, model, args, name="Validation", max_num_examples=None):
     print("Predict: ", preds.shape)
 
     result = {
-        "prec": metrics.precision_score(labels, preds, average="macro"),
-        "recall": metrics.recall_score(labels, preds, average="macro"),
+        # "prec": metrics.precision_score(labels, preds, average="macro"),
+        # "recall": metrics.recall_score(labels, preds, average="macro"),
+        "prec": metrics.precision_score(labels, preds, average="micro"),
+        "recall": metrics.recall_score(labels, preds, average="micro"),
         "acc": metrics.accuracy_score(labels, preds),
     }
+    if testing:
+        print(metrics.classification_report(labels, preds, target_names=dataset.labels.keys()))
     print(name, " accuracy:", result["acc"])
     return result
 
@@ -231,6 +237,8 @@ if __name__ == '__main__':
     args.output_dim = len(data_loader.labels.keys())
     args.clip = True
     args.ckptdir = "ckpt"
+    if not os.path.exists(args.ckptdir):
+        os.makedirs(args.ckptdir)
     args.method = "GCN"
     args.name = "dummy name"
     args.num_epochs = 200

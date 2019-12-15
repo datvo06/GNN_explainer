@@ -219,7 +219,7 @@ class ExplainerMultiEdges:
     # NODE EXPLAINER
     def explain_nodes(self, node_indices,
                       # args, data_loader,
-                      corpus, graph_idx=0):
+                      corpus=None, graph_idx=0):
         """
         Explain nodes
 

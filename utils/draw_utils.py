@@ -59,7 +59,7 @@ def draw_node_bbox(img, bbox, label, importance=1.0):
     # TODO: choose colors.
 
     return draw_bbox(img, bbox[0], bbox[1], bbox[2], bbox[3],
-                     colors[label % (len(colors) - 1) + 1 if label > 0 else 0],
+                     colors[label % len(colors)],
                      min(max(int(5*importance), 1), 5))
 
 
