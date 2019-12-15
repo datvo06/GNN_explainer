@@ -12,7 +12,7 @@ import utils.math_utils as math_utils
 import utils.io_utils as io_utils
 
 from utils.pickle_related import read_pickle
-from models_cinnamon import RobustFilterGraphCNNConfig1
+from models_funsd import FUNSDModelConfig1
 
 import json
 import random
@@ -22,14 +22,18 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class FunsdDataLoader(Dataset):
-    def __init__(self, funsd_pickle_path):
+    def __init__(self, funsd_pickle_path, labels_dict=None):
         self.inp_list = pickle.load(open(funsd_pickle_path, 'rb'))
-        self.labels = dict(
-            [label, idx]
-            for idx, label in enumerate(
-                list(
-                    set(self.inp_list[0]['labels']))))
-        json.dump(self.labels, open('labels', 'w'))
+        if labels_dict is None:
+            self.labels = dict(
+                [label, idx]
+                for idx, label in enumerate(
+                    list(
+                        set(self.inp_list[0]['labels']))))
+
+            json.dump(self.labels, open('labels', 'w'))
+        else:
+            self.labels = labels
         for each_dict in self.inp_list:
             each_dict['labels'] = np.array(
                 [self.labels[label]
@@ -66,7 +70,7 @@ def train(dataset, model_instance, args, same_feat=True,
     writer_batch_idx = [0, 3, 6, 9]
 
     optimizer = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model_instance.parameters()), lr=0.001
+        filter(lambda p: p.requires_grad, model_instance.parameters()), lr=0.0001
     )
     iter = 0
     best_val_result = {"epoch": 0, "loss": 0, "acc": 0}
@@ -217,6 +221,7 @@ if __name__ == '__main__':
     random.seed(777)
 
     data_loader = FunsdDataLoader("./funsd_preprocess.pkl")
+    data_loader_test = FunsdDataLoader("./funsd_preprocess_test.pkl", data_loader.labels)
     # set up the arguments
     args = dummyArgs()
     args.batch_size = 1
@@ -230,7 +235,7 @@ if __name__ == '__main__':
     args.name = "dummy name"
     args.num_epochs = 200
     args.train_ratio = 0.8
-    args.test_ratio = 0.1
+    args.test_ratio = 0.0
     args.gpu = torch.cuda.is_available()
 
     # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
@@ -240,12 +245,12 @@ if __name__ == '__main__':
     n_labels = args.output_dim
     n_edges = data_loader[i]['adj'].shape[-1]
 
-    graph_kv = RobustFilterGraphCNNConfig1(input_dim=feature_dim,
-                                           output_dim=n_labels,
-                                           num_edges=n_edges)
+    graph_kv = FUNSDModelConfig1(input_dim=feature_dim,
+                                 output_dim=n_labels,
+                                 num_edges=n_edges)
     graph_kv.to(device)
     graphs = data_loader
-    test_graphs = None
+    test_graphs = data_loader_test
     indices = list(range(len(graphs)))
     random.shuffle(indices)
     if test_graphs is None:
@@ -259,8 +264,8 @@ if __name__ == '__main__':
         test_graphs = [graphs[i] for i in indices[test_idx:]]
     else:
         train_idx = int(len(graphs) * args.train_ratio)
-        train_graphs = graphs[:train_idx]
-        val_graphs = graphs[train_idx:]
+        train_graphs = [graphs[i] for i in indices[:train_idx]]
+        val_graphs = [graphs[i] for i in indices[train_idx:]]
     print(
         "Num training graphs: ",
         len(train_graphs),
