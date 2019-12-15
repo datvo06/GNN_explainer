@@ -45,7 +45,7 @@ class FunsdDataLoader(Dataset):
             "feats": torch.Tensor(np.concatenate(
                 (self.inp_list[idx]['transformer_feature'],
                  self.inp_list[idx]['pos_feats']), -1)).unsqueeze(0),
-            "label": torch.Tensor(self.labels[idx]).unsqueeze(0)
+            "label": torch.Tensor(self.inp_dict[idx]['labels']).unsqueeze(0)
         }
 
     def __getitem__(self, idx):
@@ -216,14 +216,14 @@ class dummyArgs(object):
 if __name__ == '__main__':
     random.seed(777)
 
-    data_loader = FunsdDataLoader("./Invoice_data/input_features.pickle")
+    data_loader = FunsdDataLoader("./funsd_preprocess.pkl")
     # set up the arguments
     args = dummyArgs()
     args.batch_size = 1
     args.bmname = None
     args.hidden_dim = 500
     args.dataset = "invoice"
-    args.output_dim = len(data_loader.labels).keys()
+    args.output_dim = len(data_loader.labels.keys())
     args.clip = True
     args.ckptdir = "ckpt"
     args.method = "GCN"
