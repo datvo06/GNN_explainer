@@ -37,7 +37,7 @@ class FunsdDataLoader(Dataset):
 
     def __len__(self):
         # TODO: features.shape = (N_Graph, Node, Feature)
-        return len(self.inp_fps)
+        return len(self.inp_list)
 
     def getitem(self, idx):
         return {
