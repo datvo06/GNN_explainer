@@ -1,4 +1,4 @@
-""" explainer_main.py
+""" explainer_main.py of Cinnamon graph-kv version.
 
      Main user interface for the explainer module.
 """
@@ -12,12 +12,20 @@ from tensorboardX import SummaryWriter
 import pickle
 import shutil
 import torch
+from torch.autograd import Variable
 
 import models
 import utils.io_utils as io_utils
 import utils.parser_utils as parser_utils
-from explainer import explain
+import numpy as np
 
+
+from explainer import explain_cinnamon as explain
+# ExplainerMultiEdges()
+# ExplainMultiEdgesModule()
+
+from train_cinnamon import PerGraphNodePredDataLoader
+from models_cinnamon import RobustFilterGraphCNNConfig1
 
 
 def arg_parse():
@@ -168,9 +176,84 @@ def arg_parse():
     return parser.parse_args()
 
 
-def main():
+class dummyArgs(object):
+    def __init__(self):
+        pass
+
+
+def forward_pred(dataset, model_instance):
+    """
+
+    :param dataset:  Data_loader.
+    :param model:    Pytorch model instance.
+    :return:
+    """
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    model_instance = model_instance.to(device)
+    model_instance.eval()
+
+    labels = []
+    preds = []
+    for batch_idx, data in enumerate(dataset):
+        adj = Variable(data["adj"].float(), requires_grad=False)  # .cuda()
+        h0 = Variable(data["feats"].float())  # .cuda()
+        labels.append(data["label"].long().numpy())
+
+        # TODO: fix the evaluate.
+        ypred = model_instance.forward(h0.to(device), adj.to(device))
+        # ypred = model(V.to(device), adj.to(device))
+
+        _, indices = torch.max(ypred, -1)
+        preds.append(indices.cpu().data.numpy())
+
+    return preds, labels
+
+
+if __name__ == "__main__":
     # Load a configuration
-    prog_args = arg_parse()
+    # prog_args = arg_parse()
+
+    parser = argparse.ArgumentParser(description="GNN Explainer arguments.")
+    parser.add_argument("-i", "--graph_idx", type=int, default=7,
+                        help="Graph sample index.")
+    args = parser.parse_args()
+
+    prog_args = dummyArgs()
+    data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
+    corpus = open("./Invoice_data/corpus.json").read()[1:-2]
+    # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
+    # corpus = open("../Invoice_k_fold/save_features/all/corpus.json").read()[1:-2]
+
+    prog_args.batch_size = 1
+    prog_args.bmname = None
+    prog_args.hidden_dim = 500
+    prog_args.dataset = "invoice"
+    prog_args.output_dim = np.max(np.array(np.concatenate(data_loader.labels, axis=0))) + 1
+    prog_args.clip = True
+    prog_args.ckptdir = "ckpt"
+    prog_args.method = "GCN"
+    prog_args.name = "dummy name"
+    # prog_args.num_epochs = 20
+    prog_args.num_epochs = 2000
+    prog_args.train_ratio = 0.8
+    prog_args.test_ratio = 0.1
+    prog_args.gpu = torch.cuda.is_available()
+    prog_args.cuda = "2"
+
+    prog_args.writer = None
+    prog_args.logdir = os.path.join(os.getcwd(), "explain_log")
+    prog_args.explainer_suffix = "explained_"
+
+    # Load a model checkpoint
+    ckpt = io_utils.load_ckpt(prog_args)
+    cg_dict = ckpt["cg"]  # get computation graph
+    input_dim = cg_dict["feat"].cpu().detach().numpy().shape[2]
+
+    # cg_dict["pred"][0][sample_idx][textline_idx] = kv last layer output.
+    num_classes = len(cg_dict["pred"][0][0][0])
+
+    print("Loaded model from {}".format(prog_args.ckptdir))
+    print("input dim: ", input_dim, "; num classes: ", num_classes)
 
     if prog_args.gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = prog_args.cuda
@@ -189,14 +272,7 @@ def main():
     else:
         writer = None
 
-    # Load a model checkpoint
-    ckpt = io_utils.load_ckpt(prog_args)
-    cg_dict = ckpt["cg"] # get computation graph
-    input_dim = cg_dict["feat"].shape[2]
-    num_classes = cg_dict["pred"].shape[2]
-    print("Loaded model from {}".format(prog_args.ckptdir))
-    print("input dim: ", input_dim, "; num classes: ", num_classes)
-
+    '''
     # Determine explainer mode
     graph_mode = (
         prog_args.graph_mode
@@ -231,88 +307,74 @@ def main():
             bn=prog_args.bn,
             args=prog_args,
         )
+        '''
+
+    i = 0
+
+    # infer_graphs = [data_loader[i] for i in range(10)]
+    feature_dim = data_loader[i]['feats'].shape[-1]
+    n_labels = prog_args.output_dim
+    n_edges = data_loader[i]['adj'].shape[-1]
+    model = RobustFilterGraphCNNConfig1(input_dim=feature_dim,
+                                        output_dim=n_labels,
+                                        num_edges=n_edges)
+
     if prog_args.gpu:
         model = model.cuda()
     # load state_dict (obtained by model.state_dict() when saving checkpoint)
     model.load_state_dict(ckpt["model_state"])
 
     # Create explainer
-    explainer = explain.Explainer(
-        model=model,
-        adj=cg_dict["adj"],
-        feat=cg_dict["feat"],
-        label=cg_dict["label"],
-        pred=cg_dict["pred"],
-        train_idx=cg_dict["train_idx"],
-        args=prog_args,
-        writer=writer,
-        print_training=True,
-        graph_mode=graph_mode,
-        graph_idx=prog_args.graph_idx,
-    )
+    # TODO: Choose graph_idx.
 
-    # TODO: API should definitely be cleaner
-    # Let's define exactly which modes we support
-    # We could even move each mode to a different method (even file)
-    print('Node', prog_args.explain_node)
-    if prog_args.explain_node is not None:
-        explainer.explain(prog_args.explain_node, unconstrained=False)
-    elif graph_mode:
-        if prog_args.multigraph_class >= 0:
-            print(cg_dict["label"])
-            # only run for graphs with label specified by multigraph_class
-            labels = cg_dict["label"].numpy()
-            graph_indices = []
-            for i, l in enumerate(labels):
-                if l == prog_args.multigraph_class:
-                    graph_indices.append(i)
-                if len(graph_indices) > 30:
-                    break
-            print(
-                "Graph indices for label ",
-                prog_args.multigraph_class,
-                " : ",
-                graph_indices,
-            )
-            explainer.explain_graphs(graph_indices=graph_indices)
+    prog_args.mask_act = "sigmoid"  # "ReLU"
+    prog_args.opt = 'adam'
+    prog_args.lr = 0.003
+    prog_args.opt_scheduler = 'none'
 
-        elif prog_args.graph_idx == -1:
-            # just run for a customized set of indices
-            explainer.explain_graphs(graph_indices=[1, 2, 3, 4])
-        else:
-            explainer.explain(
-                node_idx=0,
-                graph_idx=prog_args.graph_idx,
-                graph_mode=True,
-                unconstrained=False,
-            )
-            io_utils.plot_cmap_tb(writer, "tab20", 20, "tab20_cmap")
-    else:
-        if prog_args.multinode_class >= 0:
-            print(cg_dict["label"])
-            # only run for nodes with label specified by multinode_class
-            labels = cg_dict["label"][0]  # already numpy matrix
-
-            node_indices = []
-            for i, l in enumerate(labels):
-                if len(node_indices) > 4:
-                    break
-                if l == prog_args.multinode_class:
-                    node_indices.append(i)
-            print(
-                "Node indices for label ",
-                prog_args.multinode_class,
-                " : ",
-                node_indices,
-            )
-            explainer.explain_nodes(node_indices, prog_args)
-
-        else:
-            # explain a set of nodes
-            masked_adj = explainer.explain_nodes_gnn_stats(
-                range(400, 700, 5), prog_args
+    for i in range(len(data_loader)):
+        try:
+            prog_args.graph_idx = i
+            explainer = explain.ExplainerMultiEdges(
+                model=model,
+                # adj=cg_dict["adj"],
+                # feat=cg_dict["feat"],
+                # label=cg_dict["label"],
+                # pred=cg_dict["pred"],
+                train_idx=cg_dict["train_idx"],
+                args=prog_args,
+                writer=writer,
+                print_training=True,
+                data_loader=data_loader
+                # graph_idx=prog_args.graph_idx,
             )
 
-if __name__ == "__main__":
-    main()
+            # TODO: API should definitely be cleaner
+            # Let's define exactly which modes we support
+            # We could even move each mode to a different method (even file)
+
+            # TODO:
+            prog_args.explain_node = [i for i in range(len(data_loader.labels[prog_args.graph_idx]))
+                                            if data_loader.labels[prog_args.graph_idx][i] > 0]
+            prog_args.multinode_class = 1
+
+            if prog_args.multinode_class >= 0:
+                print(cg_dict["label"])
+                # only run for nodes with label specified by multinode_class
+                labels = cg_dict["label"][0]  # already numpy matrix
+
+                print(
+                    "Node indices for label ",
+                    prog_args.multinode_class,
+                    " : ",
+                    # node_indices,
+                    prog_args.explain_node
+                )
+                explainer.explain_nodes(node_indices=prog_args.explain_node,
+                                        # args=prog_args,
+                                        # data_loader=data_loader,
+                                        corpus=corpus,
+                                        graph_idx=prog_args.graph_idx)
+        except:
+            continue
 

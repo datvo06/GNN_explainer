@@ -33,6 +33,9 @@ import utils.io_utils as io_utils
 import utils.train_utils as train_utils
 import utils.graph_utils as graph_utils
 
+from utils.draw_utils import visualize_graph
+import cv2
+
 
 use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
@@ -42,20 +45,22 @@ Tensor = FloatTensor
 class ExplainerMultiEdges:
     def __init__(
         self, model,
-        adj, feat, label,
-        pred, train_idx,
+        # adj, feat, label, pred,
+        data_loader,
+        train_idx,
         args, writer=None, print_training=True,
-        graph_mode=False, graph_idx=False,
+        # graph_idx=False,
     ):
         self.model = model
         self.model.eval()
-        self.adj = adj
-        self.feat = feat
-        self.label = label
-        self.pred = pred
+        # self.adj = adj
+        # self.feat = feat
+        # self.label = label
+        # self.pred = pred
+        self.data_loader = data_loader
+
         self.train_idx = train_idx
-        self.graph_mode = graph_mode
-        self.graph_idx = graph_idx
+        # self.graph_idx = graph_idx
         self.args = args
         self.writer = writer
         self.print_training = print_training
@@ -67,23 +72,34 @@ class ExplainerMultiEdges:
     ):
         """Explain a single node prediction
         """
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         # index of the query node in the new adj
         # we always use all of the nodes since we have self-attention
+        # All of the current stuffs included batch, just squeeze...
         node_idx_new = node_idx
-        sub_adj = self.adj[graph_idx]
-        sub_feat = self.feat[graph_idx, :]
-        sub_label = self.label[graph_idx]
-        neighbors = np.asarray(range(self.adj.shape[0]))
+        # adj = self.adj.squeeze() # N N L
+        # feat = self.feat.squeeze() # N F
+        # label = self.label.squeeze().long()
 
-        sub_adj = np.expand_dims(sub_adj, axis=0)
-        sub_feat = np.expand_dims(sub_feat, axis=0)
+        adj = self.data_loader[graph_idx]['adj'].squeeze() # N N L
+        feat = self.data_loader[graph_idx]['feats'].squeeze() # N F
+        label = self.data_loader[graph_idx]['label'].squeeze().long()
 
-        adj   = torch.tensor(sub_adj, dtype=torch.float)
-        x     = torch.tensor(sub_feat, requires_grad=True, dtype=torch.float)
-        label = torch.tensor(sub_label, dtype=torch.long)
+        # print(sub_label)
+        x     = torch.tensor(feat, requires_grad=True, dtype=torch.float).to(device)
+        '''
+        self.pred: matrix, first row is a n_graphs-dimensional vector, each of which contain a list storing the Graph features
+        '''
 
-        pred_label = np.argmax(self.pred[0][graph_idx], axis=0)
-        print("Graph predicted label: ", pred_label)
+        # TODO: fix the evaluate.
+        # pred_label = torch.Tensor(np.argmax(np.array(self.pred[0, graph_idx]), axis=1)).to(device)
+
+        adj = Variable(adj.float(), requires_grad=False)  # .cuda()
+        h0 = Variable(feat.float())  # .cuda()
+
+        ypred = self.model.forward(h0.to(device).unsqueeze(0), adj.to(device).unsqueeze(0))
+        _, indices = torch.max(ypred, -1)
+        pred_label = indices.to(device)
 
         explainer = ExplainMultiEdgesModule(
             adj=adj,
@@ -92,8 +108,8 @@ class ExplainerMultiEdges:
             label=label,
             args=self.args,
             writer=self.writer,
-            graph_idx=self.graph_idx,
-            graph_mode=self.graph_mode,
+            # graph_idx=graph_idx,
+            # graph_mode=self.graph_mode,
         )
         # The explainer is used to create and maintain the masks
         # otherwise it will not interferes with model's prediction
@@ -111,8 +127,9 @@ class ExplainerMultiEdges:
         for epoch in range(self.args.num_epochs):
             explainer.zero_grad()
             explainer.optimizer.zero_grad()
-            ypred, adj_atts = explainer(node_idx_new, unconstrained=unconstrained)
-            loss = explainer.loss(ypred, pred_label, node_idx_new, epoch)
+            print("node index new: ", node_idx_new)
+            ypred = explainer(node_idx_new, unconstrained=unconstrained)
+            loss = explainer.loss(ypred, pred_label, graph_idx, node_idx_new, epoch)
             loss.backward()
 
             explainer.optimizer.step()
@@ -128,10 +145,10 @@ class ExplainerMultiEdges:
                     loss.item(),
                     "; mask density: ",
                     mask_density.item(),
-                    "; pred: ",
-                    ypred,
+                    # "; pred: ",
+                    # ypred,
                 )
-            single_subgraph_label = sub_label.squeeze()
+            single_subgraph_label = label.squeeze()
 
             if self.writer is not None:
                 self.writer.add_scalar("mask/density", mask_density, epoch)
@@ -161,8 +178,8 @@ class ExplainerMultiEdges:
                         )
                         node_adj_att = node_adj_att[0].cpu().detach().numpy()
                         G = io_utils.denoise_graph(
-                            node_adj_att,
-                            node_idx_new,
+                            node_adj_att.cpu().detach().numpy(),
+                            node_idx_new.cpu().detach().numpu(),
                             threshold=3.8,  # threshold_num=20,
                             max_component=True,
                         )
@@ -180,35 +197,87 @@ class ExplainerMultiEdges:
 
         print("finished training in ", time.time() - begin_time)
         if model == "exp":
+            print(explainer.masked_adj.size())
             masked_adj = (
-                explainer.masked_adj[0].cpu().detach().numpy() * sub_adj.squeeze()
+                explainer.masked_adj.cpu().detach().numpy() * adj.squeeze().cpu().detach().numpy()
             )
         else:
             adj_atts = nn.functional.sigmoid(adj_atts).squeeze()
-            masked_adj = adj_atts.cpu().detach().numpy() * sub_adj.squeeze()
+            masked_adj = adj_atts.cpu().detach().numpy() * adj.squeeze()
 
         fname = 'masked_adj_' + io_utils.gen_explainer_prefix(self.args) + (
-                'node_idx_'+str(node_idx)+'graph_idx_'+str(self.graph_idx)+'.npy')
+                'node_idx_'+str(node_idx)+'graph_idx_'+str(graph_idx)+'.npy')
+                # 'node_idx_'+str(node_idx)+'graph_idx_'+str(self.graph_idx)+'.npy')
+
+
         with open(os.path.join(self.args.logdir, fname), 'wb') as outfile:
             np.save(outfile, np.asarray(masked_adj.copy()))
             print("Saved adjacency matrix to ", fname)
-        return masked_adj
+        return masked_adj, explainer.get_node_mask().squeeze().cpu().detach().numpy()
 
 
     # NODE EXPLAINER
-    def explain_nodes(self, node_indices, args, graph_idx=0):
+    def explain_nodes(self, node_indices,
+                      # args, data_loader,
+                      corpus, graph_idx=0):
         """
         Explain nodes
 
         Args:
-            - node_indices  :  Indices of the nodes to be explained
-            - args          :  Program arguments (mainly for logging paths)
-            - graph_idx     :  Index of the graph to explain the nodes from (if multiple).
+
+        :param node_indices : Indices of the nodes to be explained
+        :param args         : Program arguments (mainly for logging paths)
+        :param corpus       : String, the Bag of Words character correspond to the GCN input.
+        :param data_loader  : The data_loader for PyTorch.
+        :param graph_idx    : Index of the graph to explain the nodes from (if multiple).
+
+        :return:
+
         """
-        # First, get all explanations for each of the nodes
-        masked_adjs = [
-            self.explain(node_idx, graph_idx=graph_idx) for node_idx in node_indices
-        ]
+
+        # TODO: Change Draw Function here.
+        # pred_all, real_all, masked_adjs = [], [], []
+        node_masks = []
+        masked_adjs = []
+        for i, node_idx in enumerate(node_indices):
+
+            # Get explanations for each of the nodes
+            masked_adj, node_mask = self.explain(node_idx, graph_idx=graph_idx)
+            # pred, real = self.make_pred_real(masked_adj, node_idx)
+            masked_adjs.append(masked_adj)
+            node_masks.append(node_mask)
+            # pred_all.append(pred)
+            # real_all.append(real)
+
+            bow = self.data_loader.inp_bow[graph_idx]
+            coord = self.data_loader.inp_cod[graph_idx]
+            coord = coord * 1.1 - 0.1
+
+            adj = self.data_loader.inp_adj[graph_idx]
+            adj = np.transpose(adj, (0, 2, 1))
+
+            label_y = self.data_loader.labels[graph_idx]
+
+            # Number of total Nodes/Textlines in this Graph.
+            # N = bow.shape[0]
+
+            image = visualize_graph(list_bows=bow,
+                                    list_positions=(coord * 1000).astype(int),
+                                    adj_mats=adj,
+                                    node_labels=label_y,
+                                    adj_importances=masked_adj,
+                                    # node_importances=node_mask,
+                                    word_list=corpus,
+                                    cur_node_idx=node_idx
+                                    )
+
+            try: os.makedirs(os.path.join(self.args.logdir, "Graph_{}".format(graph_idx)))
+            except FileExistsError: pass
+
+            save_path = os.path.join(self.args.logdir, "Graph_{}/node_{}.png".format(graph_idx, node_idx))
+            cv2.imwrite(save_path, image, [cv2.IMWRITE_PNG_COMPRESSION, 5])
+
+        '''
         ref_idx = node_indices[0]
         ref_adj = masked_adjs[0]
         curr_idx = node_indices[1]
@@ -217,7 +286,9 @@ class ExplainerMultiEdges:
         new_curr_idx, _, curr_feat, _, _ = self.extract_neighborhood(curr_idx)
 
         # Thresh hold the graph
-        G_ref = io_utils.denoise_graph(ref_adj, new_ref_idx, ref_feat, threshold=0.1)
+        G_ref = io_utils.denoise_graph(
+                ref_adj.cpu().detach().numpy(),
+                new_ref_idx, ref_feat.cpu().detach().numpy(), threshold=0.1)
         denoised_ref_feat = np.array(
             [G_ref.nodes[node]["feat"] for node in G_ref.nodes()]
         )
@@ -264,9 +335,9 @@ class ExplainerMultiEdges:
 
         # io_utils.log_graph(self.writer, aligned_adj.cpu().detach().numpy(), new_curr_idx,
         #        'align/aligned', epoch=1)
+        '''
 
         return masked_adjs
-
 
     def explain_nodes_gnn_stats(self, node_indices, args, graph_idx=0, model="exp"):
         masked_adjs = [
@@ -279,12 +350,19 @@ class ExplainerMultiEdges:
         adjs = []
         pred_all = []
         real_all = []
+
         for i, idx in enumerate(node_indices):
-            new_idx, _, feat, _, _ = self.extract_neighborhood(idx)
-            G = io_utils.denoise_graph(masked_adjs[i], new_idx, feat, threshold_num=20)
+
+            new_idx = idx
             pred, real = self.make_pred_real(masked_adjs[i], new_idx)
             pred_all.append(pred)
             real_all.append(real)
+
+            '''
+            feat = self.feat.squeeze()
+            G = io_utils.denoise_graph(masked_adjs[i], new_idx, feat, threshold_num=20)
+            
+            
             denoised_feat = np.array([G.nodes[node]["feat"] for node in G.nodes()])
             denoised_adj = nx.to_numpy_matrix(G)
             graphs.append(G)
@@ -296,20 +374,19 @@ class ExplainerMultiEdges:
                 "graph/{}_{}_{}".format(self.args.dataset, model, i),
                 identify_self=True,
             )
+            '''
 
         pred_all = np.concatenate((pred_all), axis=0)
         real_all = np.concatenate((real_all), axis=0)
-
         auc_all = roc_auc_score(real_all, pred_all)
+
         precision, recall, thresholds = precision_recall_curve(real_all, pred_all)
 
         plt.switch_backend("agg")
         plt.plot(recall, precision)
         plt.savefig("log/pr/pr_" + self.args.dataset + "_" + model + ".png")
-
         plt.close()
 
-        auc_all = roc_auc_score(real_all, pred_all)
         precision, recall, thresholds = precision_recall_curve(real_all, pred_all)
 
         plt.switch_backend("agg")
@@ -390,7 +467,7 @@ class ExplainerMultiEdges:
             pred = np.argmax(self.pred[0][graph_idx], axis=0)
         else:
             pred = np.argmax(self.pred[graph_idx][self.train_idx], axis=1)
-        print(metrics.confusion_matrix(self.label[graph_idx][self.train_idx], pred))
+        # print(metrics.confusion_matrix(self.label[graph_idx][self.train_idx], pred))
         plt.switch_backend("agg")
         fig = plt.figure(figsize=(5, 3), dpi=600)
         for i in range(2):
@@ -572,8 +649,12 @@ class ExplainMultiEdgesModule(nn.Module):
             label: the node labels (N)
         """
         super(ExplainMultiEdgesModule, self).__init__()
+
+        adj = adj.squeeze()
+        x = x.squeeze()
         assert (len(list(adj.size())) == 3), "Adj mush be NxNxL"
         assert len(list(x.size())) == 2, "x must be NxF"
+
         self.adj = adj
         self.x = x
         self.model = model
@@ -584,14 +665,21 @@ class ExplainMultiEdgesModule(nn.Module):
         self.mask_act = args.mask_act
         self.use_sigmoid = use_sigmoid
         self.graph_mode = graph_mode
+        self.criterion = torch.nn.CrossEntropyLoss()
 
         init_strategy = "normal"
         num_nodes = adj.size()[1]
         num_edges = adj.size()[-1]
         # First, init the edge mask and bias with normals
         # This is where we modify them
+        # TODO: Make mask_bias cleaner.
+        self.args.mask_bias=True
+
         self.mask, self.mask_bias = self.construct_edge_mask(
             num_nodes, num_edges, init_strategy=init_strategy
+        )
+        self.node_mask, self.node_mask_bias = self.construct_node_mask(
+            num_nodes, init_strategy=init_strategy
         )
 
         # The feature mask is used to highlight the important features
@@ -603,7 +691,7 @@ class ExplainMultiEdgesModule(nn.Module):
             params.append(self.mask_bias)
 
         # For masking diagonal entries
-        self.diag_mask = torch.ones(num_nodes, num_nodes) - torch.eye(num_nodes)
+        self.diag_mask = torch.ones(num_nodes, num_nodes, num_edges) - torch.eye(num_nodes).unsqueeze(-1)
         if args.gpu:
             self.diag_mask = self.diag_mask.cuda()
 
@@ -636,6 +724,26 @@ class ExplainMultiEdgesModule(nn.Module):
                 nn.init.constant_(mask, 0.0)
                 # mask[0] = 2
         return mask
+
+    def construct_node_mask(self, num_nodes, init_strategy="normal"):
+        """
+        Args:
+            num_node: number of nodes
+        """
+        mask = nn.Parameter(torch.FloatTensor(num_nodes))
+        mask_bias = nn.Parameter(torch.FloatTensor(num_nodes))
+        if init_strategy == "normal":
+            std = 0.1
+            with torch.no_grad():
+                mask.normal_(1.0, std)
+                mask_bias.normal_(1.0, std)
+        elif init_strategy == "constant":
+            with torch.no_grad():
+                nn.init.constant_(mask, 0.0)
+                nn.init.constant_(mask_bias, 0.0)
+        return mask, mask_bias
+        
+
 
     def construct_edge_mask(self, num_nodes,
                             num_edges,
@@ -671,14 +779,23 @@ class ExplainMultiEdgesModule(nn.Module):
             sym_mask = torch.sigmoid(self.mask)
         elif self.mask_act == "ReLU":
             sym_mask = nn.ReLU()(self.mask)
-        sym_mask = (sym_mask + sym_mask.t()) / 2
+        sym_mask = (sym_mask + sym_mask.transpose(0, 1)) / 2
         adj = self.adj.cuda() if self.args.gpu else self.adj
         masked_adj = adj * sym_mask
         if self.args.mask_bias:
-            bias = (self.mask_bias + self.mask_bias.t()) / 2
+            bias = (self.mask_bias + self.mask_bias.transpose(0, 1)) / 2
             bias = nn.ReLU6()(bias * 6) / 6
-            masked_adj += (bias + bias.t()) / 2
+            masked_adj += (bias + bias.transpose(0, 1)) / 2
         return masked_adj * self.diag_mask
+
+    def get_node_mask(self):
+        sym_mask = self.node_mask.unsqueeze(-1) + self.node_mask_bias.unsqueeze(-1)
+        if self.mask_act == "sigmoid":
+            sym_mask = torch.sigmoid(sym_mask)
+        elif self.mask_act == "ReLU":
+            sym_mask = nn.ReLU()(sym_mask)
+        return sym_mask
+
 
     def mask_density(self):
         mask_sum = torch.sum(self._masked_adj()).cpu()
@@ -691,11 +808,16 @@ class ExplainMultiEdgesModule(nn.Module):
             node_idx: the chosen node's label to be explained
         """
         x = self.x.cuda() if self.args.gpu else self.x
+        '''
+        print(" x size: ", x.size())
+        print(" node mask size: ", self.get_node_mask().size())
+        x = self.get_node_mask() * x # Use boardcasting
+        '''
 
         if unconstrained:
             sym_mask = torch.sigmoid(self.mask) if self.use_sigmoid else self.mask
             self.masked_adj = (
-                torch.unsqueeze((sym_mask + sym_mask.t()) / 2, 0) * self.diag_mask
+                torch.unsqueeze((sym_mask + sym_mask.transpose(0, 1)) / 2, 0) * self.diag_mask
             )
         else:
             self.masked_adj = self._masked_adj()
@@ -713,13 +835,15 @@ class ExplainMultiEdgesModule(nn.Module):
                 else:
                     x = x * feat_mask
 
-        ypred, adj_att = self.model(x, self.masked_adj)
+        ypred = self.model(x.unsqueeze(0), self.masked_adj.unsqueeze(0))
+        ''' # We dont use this stuff.
         if self.graph_mode:
             res = nn.Softmax(dim=0)(ypred[0])
         else:
             node_pred = ypred[self.graph_idx, node_idx, :]
             res = nn.Softmax(dim=0)(node_pred)
-        return res, adj_att
+        '''
+        return ypred
 
     def adj_feat_grad(self, node_idx, pred_label_node):
         self.model.zero_grad()
@@ -744,20 +868,37 @@ class ExplainMultiEdgesModule(nn.Module):
         loss.backward()
         return self.adj.grad, self.x.grad
 
-    def loss(self, pred, pred_label, node_idx, epoch):
+    def loss_consistency(self, pred, pred_label, node_idx):
+        """
+        Args:
+            :param pred: prediction made by the current model the current mask Nxself.output_dim
+            :param pred_label: prediction made by the model without the mask N
+            :param node_idx: the node ids used for calculation
+        :return:
+        """
+        # print("The previous model output: ", pred.view(-1, self.model.output_dim)[node_idx].size())
+        # print(pred_label[node_idx].unsqueeze(-1).size())
+        # input()
+        return self.criterion(pred.view(-1, self.model.output_dim)[node_idx].unsqueeze(0),
+                              pred_label.view(-1)[node_idx].unsqueeze(-1).long())
+
+    def loss(self, pred, pred_label, graph_idx, node_idx, epoch):
         """
         Args:
             pred: prediction made by current model
             pred_label: the label predicted by the original model.
         """
         mi_obj = False
+        '''
         if mi_obj:
             pred_loss = -torch.sum(pred * torch.log(pred))
         else:
-            pred_label_node = pred_label if self.graph_mode else pred_label[node_idx]
-            gt_label_node = self.label if self.graph_mode else self.label[0][node_idx]
+            # pred_label_node = pred_label if self.graph_mode else pred_label[node_idx]
+            gt_label_node = self.label if self.graph_mode else self.label[graph_idx].squeeze()[node_idx]
             logit = pred[gt_label_node]
             pred_loss = -torch.log(logit)
+            '''
+        pred_loss = self.loss_consistency(pred, pred_label, node_idx)
         # size
         mask = self.mask
         if self.mask_act == "sigmoid":
@@ -767,7 +908,8 @@ class ExplainMultiEdgesModule(nn.Module):
         # Size loss will make the mask as small as possible
         # in conjunction with the CE bellow, it will draw the mask towards
         # 0, unless the prediction loss pull it back
-        size_loss = self.coeffs["size"] * torch.sum(mask)
+        # size_loss = self.coeffs["size"] * (torch.sum(mask) + torch.sum(self.get_node_mask())*mask.size()[1])
+        size_loss = self.coeffs["size"] * (torch.sum(mask))
 
         # pre_mask_sum = torch.sum(self.feat_mask)
         feat_mask = (
@@ -781,8 +923,14 @@ class ExplainMultiEdgesModule(nn.Module):
         # if mask element ~ 1 i.e, 0.99: loss = ~0 - ~0 = 0
         # if mask element ~0 i.e, 0.01: loss = ~0 - 0 = 0
         # else, if mask element 0.5, loss = -log(0.5) = log(2) (maximum value)
+        '''
+        node_mask = self.get_node_mask()
+        node_mask_ent = -node_mask*torch.log(node_mask) - (1 - node_mask) * torch.log(1- node_mask)
+        '''
+
         mask_ent = -mask * torch.log(mask) - (1 - mask) * torch.log(1 - mask)
-        mask_ent_loss = self.coeffs["ent"] * torch.mean(mask_ent)
+        mask_ent_loss = self.coeffs["ent"] * (torch.mean(mask_ent))#  + torch.mean(node_mask_ent))
+
 
         # The same for feat mask entropy
         feat_mask_ent = - feat_mask             \
@@ -793,10 +941,22 @@ class ExplainMultiEdgesModule(nn.Module):
         feat_mask_ent_loss = self.coeffs["feat_ent"] * torch.mean(feat_mask_ent)
 
         # laplacian
-        D = torch.diag(torch.sum(self.masked_adj[0], 0))
+        list_D = []
+        # print(self.masked_adj.size())
+        for j in range(list(self.masked_adj.size())[-1]):
+            list_D.append(torch.diag(
+                            torch.sum(self.masked_adj[:, :, j], 0)
+                            )
+            )
+        D = torch.stack(list_D, -1)
+        # print(D.size(), self.masked_adj.size())
         m_adj = self.masked_adj if self.graph_mode else self.masked_adj[self.graph_idx]
         L = D - m_adj
-        pred_label_t = torch.tensor(pred_label, dtype=torch.float)
+        lap_loss = 0
+        # TODO:
+        '''
+        # pred_label_t = torch.tensor(pred_label, dtype=torch.float)
+
         if self.args.gpu:
             pred_label_t = pred_label_t.cuda()
             L = L.cuda()
@@ -808,7 +968,7 @@ class ExplainMultiEdgesModule(nn.Module):
                 * (pred_label_t @ L @ pred_label_t)
                 / self.adj.numel()
             )
-
+        '''
         # grad
         # adj
         # adj_grad, x_grad = self.adj_feat_grad(node_idx, pred_label_node)
