@@ -33,7 +33,7 @@ import utils.io_utils as io_utils
 import utils.train_utils as train_utils
 import utils.graph_utils as graph_utils
 
-from utils.draw_utils import visualize_graph
+from utils.draw_utils import visualize_graph, visualize_graph_text
 import cv2
 
 
@@ -219,7 +219,7 @@ class ExplainerMultiEdges:
     # NODE EXPLAINER
     def explain_nodes(self, node_indices,
                       # args, data_loader,
-                      corpus=None, graph_idx=0):
+                      list_texts=None, corpus=None, graph_idx=0):
         """
         Explain nodes
 
@@ -249,27 +249,39 @@ class ExplainerMultiEdges:
             # pred_all.append(pred)
             # real_all.append(real)
 
-            bow = self.data_loader.inp_bow[graph_idx]
-            coord = self.data_loader.inp_cod[graph_idx]
+            coord = self.data_loader[graph_idx]['feats'][:, :, -4:].squeeze().cpu().detach().numpy()
+            print(coord.shape)
             coord = coord * 1.1 - 0.1
 
-            adj = self.data_loader.inp_adj[graph_idx]
-            adj = np.transpose(adj, (0, 2, 1))
+            adj = self.data_loader[graph_idx]['adj'].squeeze().cpu().detach().numpy()
 
-            label_y = self.data_loader.labels[graph_idx]
+            label_y = self.data_loader[graph_idx]['label'].squeeze().cpu().detach().numpy()
 
             # Number of total Nodes/Textlines in this Graph.
             # N = bow.shape[0]
 
-            image = visualize_graph(list_bows=bow,
-                                    list_positions=(coord * 1000).astype(int),
-                                    adj_mats=adj,
-                                    node_labels=label_y,
-                                    adj_importances=masked_adj,
-                                    # node_importances=node_mask,
-                                    word_list=corpus,
-                                    cur_node_idx=node_idx
-                                    )
+            if list_texts is None:
+                bow = self.data_loader.inp_bow[graph_idx]
+                image = visualize_graph(list_bows=bow,
+                                        list_positions=(coord * 1000).astype(int),
+                                        adj_mats=adj,
+                                        node_labels=label_y,
+                                        adj_importances=masked_adj,
+                                        # node_importances=node_mask,
+                                        word_list=corpus,
+                                        cur_node_idx=node_idx
+                                        )
+            else:
+                image = visualize_graph_text(list_texts,
+                                        list_positions=(coord * 1000).astype(int),
+                                        adj_mats=adj,
+                                        node_labels=label_y,
+                                        adj_importances=masked_adj,
+                                        # node_importances=node_mask,
+                                        word_list=corpus,
+                                        cur_node_idx=node_idx
+                                        )
+
 
             try: os.makedirs(os.path.join(self.args.logdir, "Graph_{}".format(graph_idx)))
             except FileExistsError: pass

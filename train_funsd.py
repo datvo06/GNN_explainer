@@ -46,6 +46,7 @@ class FunsdDataLoader(Dataset):
 
     def getitem(self, idx):
         return {
+            "ocr_values": [cell.ocr_value for cell in self.inp_list[idx]['cells']],
             "adj": torch.Tensor(self.inp_list[idx]['adj_mats']).unsqueeze(0),
             "feats": torch.Tensor(np.concatenate(
                (self.inp_list[idx]['transformer_feature'],
@@ -160,8 +161,6 @@ def train(dataset, model_instance, args, same_feat=True,
     else:
         plt.plot(best_val_epochs, best_val_accs, "bo")
         plt.legend(["train", "val"])
-    plt.savefig(io_utils.gen_train_plt_name(args), dpi=600)
-    plt.close()
     matplotlib.style.use("default")
 
     print("Shapes of \'all_adjs\', \'all_feats\', \'all_labels\':",
