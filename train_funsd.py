@@ -45,7 +45,7 @@ class FunsdDataLoader(Dataset):
             "feats": torch.Tensor(np.concatenate(
                 (self.inp_list[idx]['transformer_feature'],
                  self.inp_list[idx]['pos_feats']), -1)).unsqueeze(0),
-            "label": torch.Tensor(self.inp_dict[idx]['labels']).unsqueeze(0)
+            "label": torch.Tensor(self.inp_list[idx]['labels']).unsqueeze(0)
         }
 
     def __getitem__(self, idx):
