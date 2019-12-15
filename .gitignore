@@ -117,3 +117,4 @@ path/
 .vscode/
 
 Invoice_data/
+input_features.pickle
