@@ -13,7 +13,8 @@ import utils.math_utils as math_utils
 import utils.io_utils as io_utils
 
 from utils.pickle_related import read_pickle
-from models_funsd import FUNSDModelConfig1
+# from models_funsd import FUNSDModelConfig1
+from models_funsd import FUNSDModelConfig2 as FUNSDModelConfig1
 
 import json
 import random
@@ -240,7 +241,7 @@ if __name__ == '__main__':
         os.makedirs(args.ckptdir)
     args.method = "GCN"
     args.name = "dummy name"
-    args.num_epochs = 200
+    args.num_epochs = 300
     args.train_ratio = 0.8
     args.test_ratio = 0.0
     args.gpu = torch.cuda.is_available()

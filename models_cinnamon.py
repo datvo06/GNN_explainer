@@ -123,10 +123,10 @@ class NodeSelfAtten(nn.Module):
 
 
 class RobustFilterGraphCNNConfig1(nn.Module):
-    def __init__(self, input_dim, output_dim, num_edges):
+    def __init__(self, input_dim, output_dim, num_edges, net_size=256):
         super(RobustFilterGraphCNNConfig1, self).__init__()
         self.output_dim = output_dim
-        self.net_size = 256
+        self.net_size = net_size
         self.emb1 = LinearEmbedding(input_dim, self.net_size)
         self.dropout1 = torch.nn.modules.Dropout(p=0.5)
 
