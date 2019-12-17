@@ -13,8 +13,8 @@ import utils.math_utils as math_utils
 import utils.io_utils as io_utils
 
 from utils.pickle_related import read_pickle
-# from models_funsd import FUNSDModelConfig1
-from models_funsd import FUNSDModelConfig2 as FUNSDModelConfig1
+from models_funsd import FUNSDModelConfig1
+# from models_funsd import FUNSDModelConfig2 as FUNSDModelConfig1
 
 import json
 import random
@@ -49,9 +49,10 @@ class FunsdDataLoader(Dataset):
         return {
             "ocr_values": [cell.ocr_value for cell in self.inp_list[idx]['cells']],
             "adj": torch.Tensor(self.inp_list[idx]['adj_mats']).unsqueeze(0),
-            "feats": torch.Tensor(np.concatenate(
-               (self.inp_list[idx]['transformer_feature'],
-                self.inp_list[idx]['pos_feats']), -1)).unsqueeze(0),
+            # "feats": torch.Tensor(np.concatenate(
+            #   (self.inp_list[idx]['transformer_feature'],
+            #    self.inp_list[idx]['pos_feats']), -1)).unsqueeze(0),
+            "feats": torch.Tensor(self.inp_list[idx]['transformer_feature']).unsqueeze(0),
             # "feats": torch.Tensor(self.inp_list[idx]['pos_feats']).unsqueeze(0),
             "label": torch.Tensor(self.inp_list[idx]['labels']).unsqueeze(0)
         }
