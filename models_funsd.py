@@ -25,10 +25,13 @@ class FUNSDModelConfig1(nn.Module):
         self.dropout3 = torch.nn.modules.Dropout(p=0.5)
         self.criterion = torch.nn.CrossEntropyLoss()
 
-    def forward(self, V, A):
+    def forward(self, V, A, get_last_embedding=False):
         new_V = self.dropout1(self.emb1(V))
-        new_V = self.dropout2(self.emb2(new_V))
-        new_V = self.dropout3(self.emb3(new_V))
+        last_emb = self.dropout2(self.emb2(new_V))
+        new_V = self.dropout3(self.emb3(last_emb))
+
+        if get_last_embedding:
+            return new_V, last_emb
         return new_V
 
     def loss(self, output, target):
@@ -62,7 +65,7 @@ class FUNSDModelConfig2(nn.Module):
             int(self.net_size/2), output_dim)
         self.criterion = torch.nn.CrossEntropyLoss()
 
-    def forward(self, V, A):
+    def forward(self, V, A, get_last_embedding=False):
         g1 = self.dropout2(self.gcn1(self.dropout1(self.emb1(V)), A))
         g2 = self.dropout3(self.gcn2(g1, A))
         new_V = torch.cat([g2, g1], dim=-1)
@@ -77,6 +80,8 @@ class FUNSDModelConfig2(nn.Module):
         new_V = self.emb2(new_V)
 
         new_V = self.gcn5(self.dropout6(self.gcn4(self.dropout5(new_V), A)), A)
+        if get_last_embedding:
+            return self.last_linear(new_V), new_V
         return self.last_linear(new_V)
 
     def loss(self, output, target):

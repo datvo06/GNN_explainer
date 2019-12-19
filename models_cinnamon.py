@@ -11,7 +11,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class GraphConv(nn.Module):
-    def __init__(self, input_dim, output_dim, num_edges, with_bias=True):
+    def __init__(self, input_dim, output_dim, num_edges, with_bias=True, use_bn=False):
         super(GraphConv, self).__init__()
         self.C = output_dim
         self.L = num_edges
@@ -25,6 +25,7 @@ class GraphConv(nn.Module):
         # Todo: init the weight
         nn.init.xavier_normal_(self.h_weights)
         nn.init.normal_(self.bias, mean=0.0001, std=0.00005)
+        self.use_bn = use_bn
 
 
     def apply_bn(self, x):
@@ -58,12 +59,14 @@ class GraphConv(nn.Module):
 
         # BN, (L+1)*F
         V_out = torch.matmul(new_V, self.h_weights) + self.bias.unsqueeze(0)
-
-        return self.apply_bn(F.relu(V_out).view(B, N, self.C))
+        if self.use_bn:
+            return self.apply_bn(F.relu(V_out).view(B, N, self.C))
+        else:
+            return F.relu(V_out).view(B, N, self.C)
 
 class LinearEmbedding(nn.Module):
     def __init__(self, input_dim, output_dim,
-                 with_bias=True, with_bn=True,
+                 with_bias=True, with_bn=False,
                  with_act_func=True):
         super(LinearEmbedding, self).__init__()
         self.gpu = torch.cuda.is_available()
