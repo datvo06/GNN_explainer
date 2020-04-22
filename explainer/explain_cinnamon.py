@@ -50,6 +50,7 @@ class ExplainerMultiEdges:
         train_idx,
         args, writer=None, print_training=True,
         # graph_idx=False,
+        use_unsqueeze=True
     ):
         self.model = model
         self.model.eval()
@@ -64,6 +65,7 @@ class ExplainerMultiEdges:
         self.args = args
         self.writer = writer
         self.print_training = print_training
+        self.use_unsqueeze = use_unsqueeze
 
 
     # Main method
@@ -97,7 +99,9 @@ class ExplainerMultiEdges:
         adj = Variable(adj.float(), requires_grad=False)  # .cuda()
         h0 = Variable(feat.float())  # .cuda()
 
-        ypred = self.model.forward(h0.to(device).unsqueeze(0), adj.to(device).unsqueeze(0))
+        ypred = self.model.forward(
+            h0.to(device).unsqueeze(0) if self.use_unsqueeze else h0.to(device),
+            adj.to(device).unsqueeze(0) if self.use_unsqueeze else adj.to(device))
         _, indices = torch.max(ypred, -1)
         pred_label = indices.to(device)
 
@@ -108,6 +112,7 @@ class ExplainerMultiEdges:
             label=label,
             args=self.args,
             writer=self.writer,
+            use_unsqueeze=self.use_unsqueeze,
             # graph_idx=graph_idx,
             # graph_mode=self.graph_mode,
         )
@@ -653,6 +658,7 @@ class ExplainMultiEdgesModule(nn.Module):
         writer=None,
         use_sigmoid=True,
         graph_mode=False,
+        use_unsqueeze=True
     ):
         """
         Args:
@@ -685,6 +691,7 @@ class ExplainMultiEdgesModule(nn.Module):
         # First, init the edge mask and bias with normals
         # This is where we modify them
         # TODO: Make mask_bias cleaner.
+        self.use_unsqueeze = use_unsqueeze
         self.args.mask_bias=True
 
         self.mask, self.mask_bias = self.construct_edge_mask(
@@ -847,7 +854,8 @@ class ExplainMultiEdgesModule(nn.Module):
                 else:
                     x = x * feat_mask
 
-        ypred = self.model(x.unsqueeze(0), self.masked_adj.unsqueeze(0))
+        ypred = self.model(x.unsqueeze(0) if self.use_unsqueeze else x,
+            self.masked_adj.unsqueeze(0) if self.use_unsqueeze else self.masked_adj)
         ''' # We dont use this stuff.
         if self.graph_mode:
             res = nn.Softmax(dim=0)(ypred[0])

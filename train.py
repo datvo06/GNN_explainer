@@ -1148,6 +1148,8 @@ def main():
         print("Using CPU")
 
     # use --bmname=[dataset_name] for Reddit-Binary, Mutagenicity
+    import pdb
+    pdb.set_trace()
     if prog_args.bmname is not None:
         benchmark_task(prog_args, writer=writer)
     elif prog_args.pkl_fname is not None:

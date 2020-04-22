@@ -164,6 +164,7 @@ def draw_nodes(img, list_texts, list_bboxs,
                bow_importances,
                bow_dict,
                cur_node_idx
+               true_labels=None
                ):
     """
     Args:
@@ -182,8 +183,11 @@ def draw_nodes(img, list_texts, list_bboxs,
     # Fill the current Node explained.
     if cur_node_idx is not None:
         x, y, w, h = list_bboxs[cur_node_idx]
+        drawing_color = (255, 125, 125)
+        if true_labels is not None:
+            drawing_color = drawing_color if node_labels[cur_node_idx] == true_labels[curr_node_idx] else (125, 125, 255)
         img = draw_bbox(img, x, y, w, h,
-                        color=(255, 125, 125),
+                        color=drawing_color,
                         thickness=cv2.FILLED)
 
     # First, draw the nodes based on the importances
@@ -243,7 +247,8 @@ def visualize_graph(list_bows, list_positions,
                     adj_importances=None,
                     orig_img=None,
                     word_list=None,
-                    is_text=False):
+                    is_text=False,
+                    true_labels=None):
     """
     Args:
         list_bows: the bag of words features
@@ -291,7 +296,8 @@ def visualize_graph(list_bows, list_positions,
     img = draw_nodes(
                 img, list_texts, list_positions,
                 node_labels, node_importances, position_importances,
-                bow_importances, bow_dict, cur_node_idx)
+                bow_importances, bow_dict, cur_node_idx,
+                true_labels=true_labels)
     # then, draw the edges
     # TODO:
     img = draw_edges(img, list_positions, adj_mats,

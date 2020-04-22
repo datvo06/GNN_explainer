@@ -86,11 +86,13 @@ def get_samples_max_size(samples):
 
 
 def add_plot_title(plot_image, title):
+	import pdb
+	# pdb.set_trace()
 	p_h, p_w, _ = plot_image.shape
 	title_image = np.full((15, p_w, 3), 150)
 	t_h, t_w, _ = title_image.shape
-	cv2.rectangle(title_image, (0, 0), (t_w, t_h), (0, 0, 150), 2, 5)
-	cv2.putText(title_image, title, (int(t_w/2+2), int(t_h/2+2)), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 0), thickness=1, lineType=cv2.LINE_8)
+	cv2.rectangle(cv2.UMat(title_image).get(), (0, 0), (int(t_w), (t_h)), (0, 0, 150), 2, 5)
+	cv2.putText(cv2.UMat(title_image).get(), title, (int(t_w/2+2), int(t_h/2+2)), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 0), thickness=1, lineType=cv2.LINE_8)
 	return np.concatenate((title_image, plot_image), axis=0)
 
 

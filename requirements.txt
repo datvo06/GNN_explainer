@@ -8,3 +8,4 @@ tensorboard
 jupyter
 ipywidgets
 sentence-transformers
+seaborn

@@ -34,10 +34,13 @@ if __name__ == '__main__':
 
     i = 0
     adj = input_data['HeuristicGraphAdjMat'][i]
+    # N L N 
     adj = np.transpose(adj, (0, 2, 1))
 
     bow = input_data['FormBowFeature'][i]
+    # N x F : F = # BOW
 
+    # Location normalized
     coord = input_data['TextlineCoordinateFeature'][i]
     coord = coord*1.1 - 0.1
 

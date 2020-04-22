@@ -21,13 +21,14 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class PerGraphNodePredDataLoader(Dataset):
-    def __init__(self, dini_pickle_fp):
+    def __init__(self, dini_pickle_fp, transpose=True):
         inp_dict = pickle.load(open(dini_pickle_fp, 'rb'))
         self.inp_fps = inp_dict['file_paths']
         self.inp_adj = inp_dict['HeuristicGraphAdjMat']
         self.inp_bow = inp_dict['FormBowFeature']
         self.inp_cod = inp_dict['TextlineCoordinateFeature']
         self.labels = inp_dict['labels']
+        self.transpose = transpose
 
     def __len__(self):
         # TODO: features.shape = (N_Graph, Node, Feature)
@@ -35,7 +36,8 @@ class PerGraphNodePredDataLoader(Dataset):
 
     def getitem(self, idx):
         return {
-            "adj": torch.Tensor(self.inp_adj[idx]).transpose(1, 2).unsqueeze(0),
+            "adj": torch.Tensor(self.inp_adj[idx]).transpose(1, 2).unsqueeze(0) if\
+                    self.transpose else torch.Tensor(self.inp_adj[idx]).unsqueeze(0),
             "feats": torch.Tensor(np.concatenate((self.inp_bow[idx], self.inp_cod[idx]), -1)).unsqueeze(0),
             "label": torch.Tensor(self.labels[idx]).unsqueeze(0)
         }
