@@ -163,7 +163,7 @@ def draw_nodes(img, list_texts, list_bboxs,
                position_importances,
                bow_importances,
                bow_dict,
-               cur_node_idx
+               cur_node_idx,
                true_labels=None
                ):
     """

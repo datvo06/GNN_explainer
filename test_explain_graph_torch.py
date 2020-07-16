@@ -26,7 +26,17 @@ from explainer import explain_cinnamon as explain
 
 from train_cinnamon import PerGraphNodePredDataLoader
 from models.graph_kv_core import RobustFilterGraphCNNConfig1
+import json
 
+def save_json(path, data):
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(json.dumps(data, ensure_ascii=False, indent=4))
+
+def load_json(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.loads(f.read())
+    
+    return data
 
 class GraphKV_Torch(torch.nn.Module):
     """ Interface for GraphKV PyTorch version """
@@ -54,7 +64,6 @@ class GraphKV_Torch(torch.nn.Module):
     def load_checkpoint(self, checkpoint_path):
         # Load thing that we will need
         checkpoint = torch.load(checkpoint_path)
-        corpus = checkpoint['corpus']
         self.ind2cls = checkpoint['ind2cls']
 
         self.load_model(checkpoint)
@@ -274,18 +283,20 @@ def forward_pred(dataset, model_instance):
 
 if __name__ == "__main__":
     # Load a configuration
-    # prog_args = arg_parse()
-
     parser = argparse.ArgumentParser(description="GNN Explainer arguments.")
     parser.add_argument("-i", "--graph_idx", type=int, default=7,
                         help="Graph sample index.")
+    parser.add_argument('--input', help='Path to input_features.pickle')
+    parser.add_argument('--corpus', help='Path to corpus.json')
+    parser.add_argument('--classes', help='Path to classes.json')
+
     args = parser.parse_args()
 
     prog_args = dummyArgs()
     data_loader = PerGraphNodePredDataLoader("./input_features.pickle", False)
-    corpus = open("./corpus.json").read()[1:-2]
+    corpus = load_json(args.corpus)
+    import pdb; pdb.set_trace
     # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
-    # corpus = open("../Invoice_k_fold/save_features/all/corpus.json").read()[1:-2]
 
     prog_args.batch_size = 1
     prog_args.bmname = None
@@ -310,7 +321,7 @@ if __name__ == "__main__":
     input_dim = data_loader[0]['feats'].cpu().detach().numpy().shape[2]
 
     # num_classes = len(cg_dict["pred"][0][0][0])
-    num_classes = 15 # Hot fix for SMBC right now: Num class * 2 + other 
+    num_classes =  2 * len(load_json(args.classes)) + 1 # Hot fix for SMBC right now: Num class * 2 + other 
 
     print("input dim: ", input_dim, "; num classes: ", num_classes)
 
@@ -337,7 +348,7 @@ if __name__ == "__main__":
     feature_dim = data_loader[i]['feats'].shape[-1]
     n_labels = prog_args.output_dim
     n_edges = data_loader[i]['adj'].shape[-1]
-    model = GraphKV_Torch('epoch=139.ckpt', 'gpu')
+    model = GraphKV_Torch('/mnt/data/ace/Projects/Cinnamon/lib-kv-graph/kv/graphkv_torch/lightning_logs/model_checkpoint_16_07_2020 16_29_37.cptk', 'gpu')
     '''
     RobustFilterGraphCNNConfig1(input_dim=feature_dim,
                                         output_dim=n_labels,
