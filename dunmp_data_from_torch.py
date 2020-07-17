@@ -15,11 +15,29 @@ if __name__ == '__main__':
     # second args: corpus.json path
     # third path: class.json path
     all_files = list(glob.glob(os.path.join(sys.argv[1], '*.json')))
-    dataset = KV_CA_Dataset(all_files,
-            InputEncoder(json.load(open(sys.argv[2], 'r'))),
-            json.load(open(sys.argv[3])),
-            ['key', 'value']
-            )
+    try:
+        dataset = KV_CA_Dataset(all_files,
+                InputEncoder(json.load(open(sys.argv[2], 'r'))),
+                json.load(open(sys.argv[3])),
+                clusters=None,
+                key_types=['key', 'value'],
+                take_original_input=True
+                )
+    except:
+        dataset = KV_CA_Dataset(all_files,
+                InputEncoder(json.load(open(sys.argv[2], 'r'))),
+                json.load(open(sys.argv[3])),
+                key_types=['key', 'value'],
+                take_original_input=True
+                )
+ataset = KV_CA_Dataset(all_files,
+                InputEncoder(json.load(open(sys.argv[2], 'r'))),
+                json.load(open(sys.argv[3])),
+                clusters=None,
+                key_types=['key', 'value']
+                )
+
+
     output_dict = {
             'file_paths': [],
             'HeuristicGraphAdjMat':[],
