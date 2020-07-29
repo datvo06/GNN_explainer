@@ -1,6 +1,6 @@
 from __future__ import print_function, unicode_literals
 from kv.graphkv_torch.utils.kv_ca_dataset import KV_CA_Dataset
-from kv.graphkv_torch.utils.data_encoder import InputEncoder
+from kv.graphkv_torch.utils.data_encoder import InputEncoderKeepKVData
 
 import os
 import sys
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     all_files = list(glob.glob(os.path.join(sys.argv[1], '*.json')))
     try:
         dataset = KV_CA_Dataset(all_files,
-                InputEncoder(json.load(open(sys.argv[2], 'r'))),
+                InputEncoderKeepKVData(json.load(open(sys.argv[2], 'r'))),
                 json.load(open(sys.argv[3])),
                 clusters=None,
                 key_types=['key', 'value'],
@@ -25,28 +25,26 @@ if __name__ == '__main__':
                 )
     except:
         dataset = KV_CA_Dataset(all_files,
-                InputEncoder(json.load(open(sys.argv[2], 'r'))),
+                InputEncoderKeepKVData(json.load(open(sys.argv[2], 'r'))),
                 json.load(open(sys.argv[3])),
                 key_types=['key', 'value'],
                 take_original_input=True
                 )
-ataset = KV_CA_Dataset(all_files,
-                InputEncoder(json.load(open(sys.argv[2], 'r'))),
-                json.load(open(sys.argv[3])),
-                clusters=None,
-                key_types=['key', 'value']
-                )
-
 
     output_dict = {
             'file_paths': [],
+            'location': [],
+            'text': [],
+            'original_location': [],
             'HeuristicGraphAdjMat':[],
             'FormBowFeature': [],
             'TextlineCoordinateFeature': [],
             'labels': []
     }
     for i in range(len(dataset)):
-        vertex, adj_matrix, target = dataset[i]
+
+        encoded_data, adj_matrix, target, _ = dataset[i]
+        kv_input, vertex = encoded_data
         vertex = vertex.cpu().detach().numpy()
 
         bow_features = vertex[:, :-4]
@@ -56,6 +54,8 @@ ataset = KV_CA_Dataset(all_files,
         labels = target.cpu().detach().numpy()
 
         output_dict['file_paths'].append(all_files[i])
+        output_dict['text'].append([box['text'] for box in kv_input])
+        output_dict['location'].append([ box ['location'] for box in kv_input])
         output_dict['HeuristicGraphAdjMat'].append(adj_matrix)
         output_dict['FormBowFeature'].append(bow_features)
         output_dict['TextlineCoordinateFeature'].append(location_features)
