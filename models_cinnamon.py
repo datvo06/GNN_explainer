@@ -9,6 +9,13 @@ import numpy as np
 __author__ = 'Marc, Dini'
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
+def make_linear_relu(input_dim, output_dim):
+    return nn.Sequential(
+            nn.Linear(input_dim, output_dim),
+            nn.ReLU()
+        )
+
+
 
 class GraphConv(nn.Module):
     def __init__(self, input_dim, output_dim, num_edges, with_bias=True, use_bn=False):
@@ -126,49 +133,67 @@ class NodeSelfAtten(nn.Module):
 
 
 class RobustFilterGraphCNNConfig1(nn.Module):
-    def __init__(self, input_dim, output_dim, num_edges, net_size=256):
+    """ The Core of Graph KV Module created by Ethan
+
+    Using the original name as tribute to him and Marc, Dini
+    who is the original writer of this source code
+
+    """
+    def __init__(self, input_dim, output_dim, num_edges, net_size=256, use_self_atten=False):
         super(RobustFilterGraphCNNConfig1, self).__init__()
         self.output_dim = output_dim
         self.net_size = net_size
-        self.emb1 = LinearEmbedding(input_dim, self.net_size)
-        self.dropout1 = torch.nn.modules.Dropout(p=0.5)
+        self.emb1 = make_linear_relu(input_dim, self.net_size)
 
+        self.dropout = nn.Dropout(p=0.5)
         self.gcn1 = GraphConv(self.net_size, self.net_size, num_edges)
-        self.dropout2 = torch.nn.modules.Dropout(p=0.5)
-
         self.gcn2 = GraphConv(self.net_size, self.net_size, num_edges)
-        self.dropout3 = torch.nn.modules.Dropout(p=0.5)
 
-        self.gcn3 = GraphConv(self.net_size*2, self.net_size, num_edges)
-        self.dropout4 = torch.nn.modules.Dropout(p=0.5)
+        self.gcn3 = GraphConv(self.net_size * 2, self.net_size, num_edges)
 
-        self.emb2 = LinearEmbedding(self.net_size*2, int(self.net_size/2))
-        self.self_atten = NodeSelfAtten(int(self.net_size/2))
+        half_net_size = self.net_size // 2
+        self.emb2 = make_linear_relu(self.net_size * 2, half_net_size)
 
-        self.dropout5 = torch.nn.modules.Dropout(p=0.5)
-        self.gcn4 = GraphConv(int(self.net_size/2), int(self.net_size/2), num_edges)
-        self.dropout6 = torch.nn.modules.Dropout(p=0.5)
-        self.gcn5 = GraphConv(int(self.net_size/2), int(self.net_size/2), num_edges)
-        self.last_linear = LinearEmbedding(
-            int(self.net_size/2), output_dim)
+        self.self_atten = NodeSelfAtten(half_net_size)
+
+        self.gcn4 = GraphConv(half_net_size, half_net_size, num_edges)
+        self.gcn5 = GraphConv(half_net_size, half_net_size, num_edges)
+
+        self.classifier = nn.Linear(half_net_size, output_dim)
+        self.use_self_atten = use_self_atten
         self.criterion = torch.nn.CrossEntropyLoss()
 
     def forward(self, V, A):
-        g1 = self.dropout2(self.gcn1(self.dropout1(self.emb1(V)), A))
-        g2 = self.dropout3(self.gcn2(g1, A))
-        new_V = torch.cat([g2, g1], dim=-1)
-        # print(new_V.size())
+        embedding = self.dropout(self.emb1(V))
 
-        g3 = self.dropout4(self.gcn3(new_V, A))
-        # print("Here\n")
+        # First GraphConv
+        g1 = F.relu(self.gcn1(embedding, A))
+        g1 = self.dropout(g1)
 
-        new_V = torch.cat([g3, g1], dim=-1)
-        # print("new V: ", new_V.size())
+        # Second GraphConv
+        g2 = F.relu(self.gcn2(g1, A))
+        g2 = self.dropout(g2)
 
-        new_V = self.self_atten(self.emb2(new_V))
+        # Third GraphConv
+        new_v = torch.cat([g2, g1], dim=-1)
+        g3 = F.relu(self.gcn3(new_v, A))
+        g3 = self.dropout(g3)
 
-        new_V = self.gcn5(self.dropout6(self.gcn4(self.dropout5(new_V), A)), A)
-        return self.last_linear(new_V)
+        new_v = torch.cat([g3, g1], dim=-1)
+        if self.use_self_atten:
+          new_v = self.self_atten(self.emb2(new_v))
+        else:
+          new_v = self.emb2(new_v)
+
+        new_v = self.dropout(new_v)
+
+        # Final feature extractor
+        g4 = F.relu(self.gcn4(new_v, A))
+        g4 = self.dropout(g4)
+        g5 = F.relu(self.gcn5(g4, A))
+
+        return self.classifier(g5)
 
     def loss(self, output, target):
-        return self.criterion(output.view(-1, self.output_dim), target.view(-1))
+        return self.criterion(
+            output.view(-1, self.output_dim), target.view(-1))

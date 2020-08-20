@@ -36,7 +36,7 @@ class PerGraphNodePredDataLoader(Dataset):
 
     def getitem(self, idx):
         return {
-            "adj": torch.Tensor(self.inp_adj[idx]).transpose(1, 2).unsqueeze(0) if\
+            "adj": torch.Tensor(self.inp_adj[idx]).unsqueeze(0) if\
                     self.transpose else torch.Tensor(self.inp_adj[idx]).unsqueeze(0),
             "feats": torch.Tensor(np.concatenate((self.inp_bow[idx], self.inp_cod[idx]), -1)).unsqueeze(0),
             "label": torch.Tensor(self.labels[idx]).unsqueeze(0)
@@ -210,7 +210,7 @@ class dummyArgs(object):
 if __name__ == '__main__':
     random.seed(777)
 
-    data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
+    data_loader = PerGraphNodePredDataLoader("./input_features_new.pickle")
     # set up the arguments
     args = dummyArgs()
     args.batch_size = 1

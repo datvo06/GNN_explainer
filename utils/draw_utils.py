@@ -93,7 +93,7 @@ def draw_text(img, x, y, w, h, text, color=(255, 255, 255),
                 fill=(
                     tuple(
                         # [int(0)
-                        [int(127-0.5*color_elem*(importances[i]))
+                        [int(255-color_elem*(importances[i]))
                          for color_elem in color])
                 ),
                 )
@@ -119,7 +119,7 @@ def draw_node_text_importances(img, list_bboxs,
             img = draw_text(
                 img, bbox[0], bbox[1], bbox[2], bbox[3],
                 list_texts[i],
-                importances=[bow_importances[i][get_mapping(c)]
+                importances=[bow_importances[i][get_mapping(c)]*3
                                    for c in list_texts[i]])
     return img
 
