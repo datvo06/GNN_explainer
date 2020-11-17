@@ -1,8 +1,8 @@
 from __future__ import print_function, unicode_literals
 from kv.graphkv_torch.utils.kv_ca_dataset import KV_CA_Dataset
 from kv.graphkv_torch.utils.data_encoder import (
-    InputEncoder, convert_label_to_cassia)
-
+    InputEncoder)
+import warnings
 import os
 import sys
 import json
@@ -12,6 +12,60 @@ import glob
 import torch
 
 
+
+def convert_label_to_cassia(label_data: dict) -> (list, list):
+    """
+        Cassia Input Format is list with each region is a dict that map:
+            - "location": Four point coordinate in clockwise position
+            - "text": Text data
+        Return 2 list,
+            - list of tuple class_name and key_type from label
+            - list of Cassia format for input
+    """
+
+    cassia_input = []
+    list_label = []
+    regions = label_data['attributes']['_via_img_metadata']['regions']
+
+    for region in regions:
+        shape = region['shape_attributes']
+        if shape['name'] == 'polygon':
+            xs = shape['all_points_x']
+            ys = shape['all_points_y']
+            x1, x2 = min(xs), max(xs)
+            y1, y2 = min(ys), max(ys)
+
+            location = [
+                        [x1, y1],
+                        [x2, y1],
+                        [x2, y2],
+                        [x1, y2]
+                    ]
+        elif shape['name'] == 'rect':
+            x, y = shape['x'], shape['y']
+            w, h = shape['width'], shape['height']
+
+            location = [
+                [x, y],
+                [x + w, y],
+                [x + w, y + h],
+                [x, y + h]
+            ]
+        else:
+            warnings.warn(f"Not supported {shape['name']}")
+
+        text = region['region_attributes']['label']
+        class_name = region['region_attributes']['formal_key']
+        key_type = region['region_attributes']["key_type"]
+
+        cassia_input.append({
+            "location": location,
+            "text": text
+        })
+
+        list_label.append((class_name, key_type))
+
+    return list_label, cassia_input
 
 def representInt(s):
     try:
