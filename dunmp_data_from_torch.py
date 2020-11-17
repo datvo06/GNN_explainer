@@ -1,6 +1,6 @@
 from __future__ import print_function, unicode_literals
 from kv.graphkv_torch.utils.kv_ca_dataset import KV_CA_Dataset
-from kv.graphkv_torch.utils.data_encoder import InputEncoderKeepKVData
+from kv.graphkv_torch.utils.data_encoder import InputEncoder
 
 import os
 import sys
@@ -8,6 +8,29 @@ import json
 import numpy as np
 import pickle as pickle
 import glob
+
+
+class InputEncoderKeepKVData(InputEncoder):
+    """ The same as the parent, but also keep the text
+    in short, the output =\
+        ({"location": location feature, "text": text}, ... - InputEncoder data)
+    Example:
+        encoder = InputEncoder(corpus)
+        vertex_data = encoder(kv_input)
+    """
+    def __init__(self, corpus, use_cache_text=True, is_normalized_text=False):
+        super().__init__(
+            corpus, use_cache_text,
+            is_normalized_text)
+
+    def encode(self, sample, normalize_vertex_func=None):
+        encoded_data = super().encode(
+            sample, normalize_vertex_func)
+        return (sample, encoded_data)
+
+    def __call__(self, sample, normalize_vertex_func=None):
+        # Use call warper for more pytorch like
+        return self.encode(sample, normalize_vertex_func)
 
 
 if __name__ == '__main__':
