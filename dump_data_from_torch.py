@@ -1,7 +1,7 @@
 from __future__ import print_function, unicode_literals
 from kv.graphkv_torch.utils.kv_ca_dataset import KV_CA_Dataset
 from kv.graphkv_torch.utils.data_encoder import (
-    InputEncoder, convert_label_via_to_cassia, convert_label_to_cassia)
+    InputEncoder, convert_label_to_cassia)
 
 import os
 import sys
@@ -10,6 +10,79 @@ import numpy as np
 import pickle as pickle
 import glob
 import torch
+
+
+
+def representInt(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+def convert_label_via_to_cassia(label_data: dict,
+                                use_clusters: bool = False) -> (list, list):
+    """
+        Cassia Input Format is list with each region is a dict that map:
+            - "location": Four point coordinate in clockwise position
+            - "text": Text data
+        Return 2 list,
+            - list of tuple class_name and key_type from label
+            - list of Cassia format for input
+    """
+
+    cassia_input = []
+    list_label = []
+    regions = label_data['regions']
+
+    for region in regions:
+        shape = region['shape_attributes']
+        if shape['name'] == 'polygon':
+            xs = shape['all_points_x']
+            ys = shape['all_points_y']
+            x1, x2 = min(xs), max(xs)
+            y1, y2 = min(ys), max(ys)
+
+            location = [
+                        [x1, y1],
+                        [x2, y1],
+                        [x2, y2],
+                        [x1, y2]
+                    ]
+        elif shape['name'] == 'rect':
+            x, y = shape['x'], shape['y']
+            w, h = shape['width'], shape['height']
+
+            location = [
+                [x, y],
+                [x + w, y],
+                [x + w, y + h],
+                [x, y + h]
+            ]
+        else:
+            warnings.warn(f"Not supported {shape['name']}")
+
+        text = region['region_attributes']['label']
+        class_name = region['region_attributes']['formal_key']
+        if use_clusters:
+            # Split it further
+            cluster_name = int(
+                class_name.split('_')[-1])\
+                if representInt(class_name.split('_')[-1]) else 0
+
+        key_type = region['region_attributes']["key_type"]
+
+        cassia_input.append({
+            "location": location,
+            "text": text
+        })
+
+        if use_clusters:
+            list_label.append((cluster_name, class_name, key_type))
+        else:
+            list_label.append((class_name, key_type))
+
+    return list_label, cassia_input
 
 
 class KV_CA_Dataset_modified(KV_CA_Dataset):
