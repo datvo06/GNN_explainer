@@ -122,8 +122,8 @@ class GraphConv(nn.Module):
         # Aggregate node information first
         new_V = torch.matmul(
             A, V.view(-1, N, self.F)).view(
-                B, self.L+1, N, F
-            ).transpose(1, 2).view(B, N, -1)  # B(L+1) N F => B N (L+1)F
+                B, self.L+1, N, self.F
+            ).transpose(1, 2).contiguous().view(B, N, -1)  # B(L+1) N F => B N (L+1)F
 
         # BN, (L+1)*F
         V_out = torch.matmul(new_V, self.h_weights) + self.bias.unsqueeze(0)

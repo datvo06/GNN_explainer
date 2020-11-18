@@ -144,7 +144,6 @@ class KV_CA_Dataset_modified(KV_CA_Dataset):
                  label_paths: list,
                  encoder,
                  classes: list,
-                 clusters: list,
                  key_types: list,
                  take_original_input=False
                  ):
@@ -166,11 +165,12 @@ class KV_CA_Dataset_modified(KV_CA_Dataset):
             label_paths,
             encoder,
             classes,
-            clusters=None,
             key_types=['key', 'value']
         )
 
         self.take_original_input = take_original_input
+        self.use_cinnamon_format = True
+        self.use_clusters = False
 
     def convert_label_to_numerical(self, labels):
         # Convert labels to index
@@ -213,14 +213,9 @@ class KV_CA_Dataset_modified(KV_CA_Dataset):
         # Convert kv_input to numerical input
         vertex, adj_matrix = self.encode_kv_input(kv_input)
 
-        if not self.use_clusters:
-            if self.take_original_input:
-                return vertex, adj_matrix, target, kv_input
-            return vertex, adj_matrix, target
-        else:
-            if self.take_original_input:
-                return vertex, adj_matrix, target, target_cluster, kv_input
-            return vertex, adj_matrix, target, target_cluster
+        if self.take_original_input:
+            return kv_input, vertex, adj_matrix, target, 
+        return vertex, adj_matrix, target
 
     def __len__(self):
         return self.num_data
@@ -240,9 +235,13 @@ class InputEncoderKeepKVData(InputEncoder):
             is_normalized_text)
 
     def encode(self, sample, normalize_vertex_func=None):
-        encoded_data = super().encode(
-            sample, normalize_vertex_func)
-        return (sample, encoded_data)
+        text_data = self.get_bow_matrix(sample)
+        spatial_data = self.get_spatial_features_matrix(sample)
+        vertex = np.concatenate((text_data, spatial_data), axis=1)
+        vertex = torch.tensor(vertex)
+        if normalize_vertex_func is not None:
+            vertex = normalize_vertex_func(vertex)
+        return vertex
 
     def __call__(self, sample, normalize_vertex_func=None):
         # Use call warper for more pytorch like
@@ -254,21 +253,12 @@ if __name__ == '__main__':
     # second args: corpus.json path
     # third path: class.json path
     all_files = list(glob.glob(os.path.join(sys.argv[1], '*.json')))
-    try:
-        dataset = KV_CA_Dataset_modified(all_files,
-                InputEncoderKeepKVData(json.load(open(sys.argv[2], 'r'))),
-                json.load(open(sys.argv[3])),
-                clusters=None,
-                key_types=['key', 'value'],
-                take_original_input=True
-                )
-    except:
-        dataset = KV_CA_Dataset_modified(all_files,
-                InputEncoderKeepKVData(json.load(open(sys.argv[2], 'r'))),
-                json.load(open(sys.argv[3])),
-                key_types=['key', 'value'],
-                take_original_input=True
-                )
+    dataset = KV_CA_Dataset_modified(all_files,
+            InputEncoderKeepKVData(open(sys.argv[2], 'r').readlines()),
+            json.load(open(sys.argv[3])),
+            key_types=['key', 'value'],
+            take_original_input=True
+            )
 
     output_dict = {
             'file_paths': [],
@@ -282,8 +272,7 @@ if __name__ == '__main__':
     }
     for i in range(len(dataset)):
 
-        encoded_data, adj_matrix, target, _ = dataset[i]
-        kv_input, vertex = encoded_data
+        kv_input, vertex, adj_matrix, target = data[i]
         vertex = vertex.cpu().detach().numpy()
 
         bow_features = vertex[:, :-4]
