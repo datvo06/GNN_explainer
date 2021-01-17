@@ -37,7 +37,7 @@ class PerGraphNodePredDataLoader(Dataset):
 
     def getitem(self, idx):
         return {
-            "adj": torch.Tensor(self.inp_adj[idx]).unsqueeze(0) if\
+            "adj": torch.Tensor(self.inp_adj[idx]).unsqueeze(0) if
                     self.transpose else torch.Tensor(self.inp_adj[idx]).unsqueeze(0),
             "feats": torch.Tensor(np.concatenate((self.inp_bow[idx], self.inp_cod[idx]), -1)).unsqueeze(0),
             "label": torch.Tensor(self.labels[idx]).unsqueeze(0)
@@ -49,6 +49,7 @@ class PerGraphNodePredDataLoader(Dataset):
             return_lists = [self.getitem(idx) for idx in list_idx]
         else:
             return_lists = self.getitem(idx)
+        return return_lists
 
 def train(dataset, model_instance, args, same_feat=True,
           val_dataset=None,
