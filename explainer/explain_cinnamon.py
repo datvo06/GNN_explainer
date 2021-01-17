@@ -47,11 +47,12 @@ class ExplainerMultiEdges:
         self, model,
         # adj, feat, label, pred,
         data_loader,
-        train_idx,
         args, writer=None, print_training=True,
+        train_idx=0,
         # graph_idx=False,
         use_unsqueeze=True
     ):
+        self.train_idx = 0
         self.model = model
         self.model.eval()
         # self.adj = adj
@@ -60,7 +61,6 @@ class ExplainerMultiEdges:
         # self.pred = pred
         self.data_loader = data_loader
 
-        self.train_idx = train_idx
         # self.graph_idx = graph_idx
         self.args = args
         self.writer = writer

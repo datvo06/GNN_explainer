@@ -379,7 +379,6 @@ if __name__ == "__main__":
         prog_args.graph_idx = i
         explainer = explain.ExplainerMultiEdges(
             model=model,
-            train_idx= 0, # cg_dict["train_idx"],
             args=prog_args,
             writer=writer,
             print_training=True,

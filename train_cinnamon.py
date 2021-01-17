@@ -138,6 +138,9 @@ def train(dataset, model_instance, args, same_feat=True,
         if epoch %10 == 0:
             filename = io_utils.create_filename(args.ckptdir, args, False, epoch)
             torch.save(model_instance.state_dict(), filename)
+            io_utils.save_checkpoint(model_instance, optimizer, args, num_epochs=-1,
+                             cg_dict=cg_data)
+
     matplotlib.style.use("seaborn")
     plt.switch_backend("agg")
     plt.figure()

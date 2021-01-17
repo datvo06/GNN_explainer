@@ -2,8 +2,10 @@
 
      Main user interface for the explainer module.
 """
+import sys
 import argparse
 import os
+import json
 
 import sklearn.metrics as metrics
 
@@ -26,6 +28,11 @@ from explainer import explain_cinnamon as explain
 
 from train_cinnamon import PerGraphNodePredDataLoader
 from models_cinnamon import RobustFilterGraphCNNConfig1
+
+def load_json(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.loads(f.read())
+        return data
 
 
 def arg_parse():
@@ -212,15 +219,17 @@ def forward_pred(dataset, model_instance):
 if __name__ == "__main__":
     # Load a configuration
     # prog_args = arg_parse()
-
-    parser = argparse.ArgumentParser(description="GNN Explainer arguments.")
-    parser.add_argument("-i", "--graph_idx", type=int, default=7,
-                        help="Graph sample index.")
-    args = parser.parse_args()
-
     prog_args = dummyArgs()
-    data_loader = PerGraphNodePredDataLoader("./Invoice_data/input_features.pickle")
-    corpus = open("./Invoice_data/corpus.json").read()[1:-2]
+    if len(sys.argv) > 1:
+        start_idx = int(sys.argv[1])
+    else:
+        start_idx = 0
+    data_loader = PerGraphNodePredDataLoader("./input_features_train.pickle")
+    if len(sys.argv) > 2:
+        end_idx = int(sys.argv[2])
+    else:
+        end_idx = len(data_loader)
+    corpus = open("corpus_corrected.json").read()
     # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
     # corpus = open("../Invoice_k_fold/save_features/all/corpus.json").read()[1:-2]
 
@@ -240,17 +249,18 @@ if __name__ == "__main__":
     prog_args.gpu = torch.cuda.is_available()
     prog_args.cuda = "2"
 
-    prog_args.writer = None
     prog_args.logdir = os.path.join(os.getcwd(), "explain_log")
+    if not (os.path.exists(prog_args.logdir)):
+        os.makedirs(prog_args.logdir)
     prog_args.explainer_suffix = "explained_"
 
     # Load a model checkpoint
     ckpt = io_utils.load_ckpt(prog_args)
-    cg_dict = ckpt["cg"]  # get computation graph
-    input_dim = cg_dict["feat"].cpu().detach().numpy().shape[2]
+    print(ckpt.keys())
+    input_dim = len(corpus) + 4
 
     # cg_dict["pred"][0][sample_idx][textline_idx] = kv last layer output.
-    num_classes = len(cg_dict["pred"][0][0][0])
+    num_classes =  2 * len(load_json('classes.json')) -  1
 
     print("Loaded model from {}".format(prog_args.ckptdir))
     print("input dim: ", input_dim, "; num classes: ", num_classes)
@@ -260,54 +270,6 @@ if __name__ == "__main__":
         print("CUDA", prog_args.cuda)
     else:
         print("Using CPU")
-
-    # Configure the logging directory
-    if prog_args.writer:
-        path = os.path.join(prog_args.logdir, io_utils.gen_explainer_prefix(prog_args))
-        if os.path.isdir(path) and prog_args.clean_log:
-           print('Removing existing log dir: ', path)
-           if not input("Are you sure you want to remove this directory? (y/n): ").lower().strip()[:1] == "y": sys.exit(1)
-           shutil.rmtree(path)
-        writer = SummaryWriter(path)
-    else:
-        writer = None
-
-    '''
-    # Determine explainer mode
-    graph_mode = (
-        prog_args.graph_mode
-        or prog_args.multigraph_class >= 0
-        or prog_args.graph_idx >= 0
-    )
-
-    # build model
-    print("Method: ", prog_args.method)
-    if graph_mode:
-        # Explain Graph prediction
-        model = models.GcnEncoderGraph(
-            input_dim=input_dim,
-            hidden_dim=prog_args.hidden_dim,
-            embedding_dim=prog_args.output_dim,
-            label_dim=num_classes,
-            num_layers=prog_args.num_gc_layers,
-            bn=prog_args.bn,
-            args=prog_args,
-        )
-    else:
-        if prog_args.dataset == "ppi_essential":
-            # class weight in CE loss for handling imbalanced label classes
-            prog_args.loss_weight = torch.tensor([1.0, 5.0], dtype=torch.float).cuda()
-        # Explain Node prediction
-        model = models.GcnEncoderNode(
-            input_dim=input_dim,
-            hidden_dim=prog_args.hidden_dim,
-            embedding_dim=prog_args.output_dim,
-            label_dim=num_classes,
-            num_layers=prog_args.num_gc_layers,
-            bn=prog_args.bn,
-            args=prog_args,
-        )
-        '''
 
     i = 0
 
@@ -322,7 +284,7 @@ if __name__ == "__main__":
     if prog_args.gpu:
         model = model.cuda()
     # load state_dict (obtained by model.state_dict() when saving checkpoint)
-    model.load_state_dict(ckpt["model_state"])
+    model.load_state_dict(ckpt)
 
     # Create explainer
     # TODO: Choose graph_idx.
@@ -332,18 +294,13 @@ if __name__ == "__main__":
     prog_args.lr = 0.003
     prog_args.opt_scheduler = 'none'
 
-    for i in range(len(data_loader)):
+    for i in range(start_idx, end_idx):
         try:
             prog_args.graph_idx = i
             explainer = explain.ExplainerMultiEdges(
                 model=model,
-                # adj=cg_dict["adj"],
-                # feat=cg_dict["feat"],
-                # label=cg_dict["label"],
-                # pred=cg_dict["pred"],
-                train_idx=cg_dict["train_idx"],
                 args=prog_args,
-                writer=writer,
+                writer=None,
                 print_training=True,
                 data_loader=data_loader
                 # graph_idx=prog_args.graph_idx,
@@ -356,25 +313,13 @@ if __name__ == "__main__":
             # TODO:
             prog_args.explain_node = [i for i in range(len(data_loader.labels[prog_args.graph_idx]))
                                             if data_loader.labels[prog_args.graph_idx][i] > 0]
-            prog_args.multinode_class = 1
 
-            if prog_args.multinode_class >= 0:
-                print(cg_dict["label"])
                 # only run for nodes with label specified by multinode_class
-                labels = cg_dict["label"][0]  # already numpy matrix
 
-                print(
-                    "Node indices for label ",
-                    prog_args.multinode_class,
-                    " : ",
-                    # node_indices,
-                    prog_args.explain_node
-                )
-                explainer.explain_nodes(node_indices=prog_args.explain_node,
-                                        # args=prog_args,
-                                        # data_loader=data_loader,
-                                        corpus=corpus,
-                                        graph_idx=prog_args.graph_idx)
+            explainer.explain_nodes(node_indices=prog_args.explain_node,
+                                    # args=prog_args,
+                                    # data_loader=data_loader,
+                                    corpus=corpus,
+                                    graph_idx=prog_args.graph_idx)
         except:
             continue
-
