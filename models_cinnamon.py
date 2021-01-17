@@ -46,6 +46,7 @@ class RobustFilterGraphCNNConfig1(nn.Module):
 
         self.classifier = nn.Linear(half_net_size, output_dim)
         self.use_self_atten = use_self_atten
+        self.criterion = torch.nn.CrossEntropyLoss()
 
 
     def forward(self, V, A):
@@ -79,6 +80,9 @@ class RobustFilterGraphCNNConfig1(nn.Module):
 
         return self.classifier(g5)
 
+    def loss(self, output, target):
+        return self.criterion(output.view(-1, self.output_dim),
+                              target.view(-1))
 
 class GraphConv(nn.Module):
     '''Written by Marc, Dini, standardized by Xing'''
