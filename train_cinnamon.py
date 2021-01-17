@@ -49,8 +49,6 @@ class PerGraphNodePredDataLoader(Dataset):
             return_lists = [self.getitem(idx) for idx in list_idx]
         else:
             return_lists = self.getitem(idx)
-        return return_lists
-
 
 def train(dataset, model_instance, args, same_feat=True,
           val_dataset=None,
@@ -251,9 +249,9 @@ if __name__ == '__main__':
         test_graphs = [graphs[i] for i in indices[test_idx:]]
     else:
         data_loader_val = PerGraphNodePredDataLoader(sys.argv[2])
-        val_graphs = data_loader_val[:]
-        test_graphs = data_loader_val[:]
-        train_graphs = graphs[:]
+        val_graphs = data_loader_val
+        test_graphs = data_loader_val
+        train_graphs = graphs[indices]
     print(
         "Num training graphs: ",
         len(train_graphs),
