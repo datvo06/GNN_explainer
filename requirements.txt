@@ -1,3 +1,4 @@
+lib-kv@git+ssh://git@github.com/Cinnamon/lib-kv-graph.git@master
 tensorboardX
 scikit-learn
 pandas

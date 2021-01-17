@@ -26,6 +26,9 @@ from explainer import explain_cinnamon as explain
 
 from train_cinnamon import PerGraphNodePredDataLoader
 from models.graph_kv_core import RobustFilterGraphCNNConfig1
+from kv.graphkv_torch import GraphKV_Torch
+from kv.graphkv_torch.utils.data_encoder import InputEncoder
+
 import json
 
 def save_json(path, data):
@@ -35,10 +38,10 @@ def save_json(path, data):
 def load_json(path):
     with open(path, 'r', encoding='utf-8') as f:
         data = json.loads(f.read())
-    
+
     return data
 
-class GraphKV_Torch(torch.nn.Module):
+class GraphKV_Torch_old(torch.nn.Module):
     """ Interface for GraphKV PyTorch version """
     def __init__(self, checkpoint_path, device='cpu'):
         """
@@ -51,7 +54,7 @@ class GraphKV_Torch(torch.nn.Module):
         self.load_checkpoint(checkpoint_path)
         self.to(device)
 
-            
+
     def to(self, device):
         if device == "gpu":
             device = "cuda"
@@ -75,14 +78,14 @@ class GraphKV_Torch(torch.nn.Module):
         n_in, n_classes = hparams['n_in'], hparams['n_classes']
         print(n_in, n_classes)
         n_edges, net_size = hparams['n_edges'], hparams['net_size']
-            
+
         # Build model core
         self.core = RobustFilterGraphCNNConfig1(n_in,
                 n_classes, n_edges, net_size)
 
         # Load weight
         self.load_state_dict(checkpoint['state_dict'])
-        
+
         self.normalize_vertex = hparams['normalize_vertex']
         self.core.eval()
 
@@ -321,7 +324,8 @@ if __name__ == "__main__":
     input_dim = data_loader[0]['feats'].cpu().detach().numpy().shape[2]
 
     # num_classes = len(cg_dict["pred"][0][0][0])
-    num_classes =  2 * len(load_json(args.classes)) + 1 # Hot fix for SMBC right now: Num class * 2 + other 
+    inp_classes = load_json(args.classes)
+    num_classes =  2 * len(load_json(args.classes)) - 1 # Hot fix for SMBC right now: Num class * 2 + other
 
     print("input dim: ", input_dim, "; num classes: ", num_classes)
 
@@ -348,7 +352,11 @@ if __name__ == "__main__":
     feature_dim = data_loader[i]['feats'].shape[-1]
     n_labels = prog_args.output_dim
     n_edges = data_loader[i]['adj'].shape[-1]
-    model = GraphKV_Torch('/mnt/data/ace/Projects/Cinnamon/lib-kv-graph/kv/graphkv_torch/lightning_logs/model_checkpoint_16_07_2020 16_29_37.cptk', 'gpu')
+    # model = GraphKV_Torch('./model_checkpoint_16_07_2020 16_29_37.cptk', 'gpu')
+    model = GraphKV_Torch('./latest_model.cptk', 'gpu',
+                          InputEncoder(corpus),
+                          classes=inp_classes)
+
     '''
     RobustFilterGraphCNNConfig1(input_dim=feature_dim,
                                         output_dim=n_labels,
