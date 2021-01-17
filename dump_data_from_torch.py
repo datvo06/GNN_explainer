@@ -213,7 +213,6 @@ class KV_CA_Dataset_modified(KV_CA_Dataset):
         # Convert kv_input to numerical input
         vertex, adj_matrix = self.encode_kv_input(kv_input)
 
-        print(vertex.size())
         if self.take_original_input:
             return kv_input, vertex, adj_matrix, target,
         return vertex, adj_matrix, target
@@ -237,7 +236,6 @@ class InputEncoderKeepKVData(InputEncoder):
 
     def encode(self, sample, normalize_vertex_func=None):
         text_data = self.get_bow_matrix(sample)
-        print(text_data.shape)
         spatial_data = self.get_spatial_features_matrix(sample)
         vertex = np.concatenate((text_data, spatial_data), axis=1)
         vertex = torch.tensor(vertex)
@@ -275,7 +273,6 @@ if __name__ == '__main__':
     for i in range(len(dataset)):
 
         kv_input, vertex, adj_matrix, target = dataset[i]
-        print(vertex.size())
         vertex = vertex.cpu().detach().numpy()
         bow_features = vertex[:, :-4]
         location_features = vertex[:, -4:]

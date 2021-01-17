@@ -15,6 +15,7 @@ from utils.pickle_related import read_pickle
 from models_cinnamon import RobustFilterGraphCNNConfig1
 
 import random
+import sys
 # import shutil
 __author__ = "Marc"
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -43,7 +44,7 @@ class PerGraphNodePredDataLoader(Dataset):
         }
 
     def __getitem__(self, idx):
-        if type(idx) != int:
+        if not isinstance(idx, int):
             list_idx = idx[:]
             return_lists = [self.getitem(idx) for idx in list_idx]
         else:
@@ -210,14 +211,17 @@ class dummyArgs(object):
 if __name__ == '__main__':
     random.seed(777)
 
-    data_loader = PerGraphNodePredDataLoader("./input_features_new.pickle")
+    # first arg: Train input_features
+    # 2nd arg: Val, if no 2nd arg => split train to make val
+    data_loader_train = PerGraphNodePredDataLoader(sys.argv[1])
     # set up the arguments
     args = dummyArgs()
     args.batch_size = 1
     args.bmname = None
     args.hidden_dim = 500
     args.dataset = "invoice"
-    args.output_dim = np.max(np.array(np.concatenate(data_loader.labels, axis=0))) + 1
+    args.output_dim = np.max(np.array(np.concatenate(
+        data_loader_train.labels, axis=0))) + 1
     args.clip = True
     args.ckptdir = "ckpt"
     args.method = "GCN"
@@ -227,34 +231,29 @@ if __name__ == '__main__':
     args.test_ratio = 0.1
     args.gpu = torch.cuda.is_available()
 
-    # data_loader = PerGraphNodePredDataLoader("../Invoice_k_fold/save_features/all/input_features.pickle")
-
     i = 0
-    feature_dim = data_loader[i]['feats'].shape[-1]
+    feature_dim = data_loader_train[i]['feats'].shape[-1]
     n_labels = args.output_dim
-    n_edges = data_loader[i]['adj'].shape[-1]
+    n_edges = data_loader_train[i]['adj'].shape[-1]
 
     graph_kv = RobustFilterGraphCNNConfig1(input_dim=feature_dim,
                                            output_dim=n_labels,
                                            num_edges=n_edges)
     graph_kv.to(device)
-    graphs = data_loader
-    test_graphs = None
+    graphs = data_loader_train
     indices = list(range(len(graphs)))
     random.shuffle(indices)
-    if test_graphs is None:
+    if len(sys.argv) < 3:
         train_idx = int(len(graphs) * args.train_ratio)
         test_idx = int(len(graphs) * (1 - args.test_ratio))
-        # train_graphs = graphs[indices[:train_idx]]
         train_graphs = [graphs[i] for i in indices[:train_idx]]
-        # val_graphs = graphs[indices[train_idx:test_idx]]
         val_graphs = [graphs[i] for i in indices[train_idx:test_idx]]
-        # test_graphs = graphs[indices[test_idx:]]
         test_graphs = [graphs[i] for i in indices[test_idx:]]
     else:
-        train_idx = int(len(graphs) * args.train_ratio)
-        train_graphs = graphs[:train_idx]
-        val_graphs = graphs[train_idx:]
+        data_loader_val = PerGraphNodePredDataLoader(sys.argv[2])
+        val_graphs = data_loader_val[:]
+        test_graphs = data_loader_val[:]
+        train_graphs = graphs[:]
     print(
         "Num training graphs: ",
         len(train_graphs),
