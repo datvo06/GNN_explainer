@@ -247,7 +247,6 @@ if __name__ == "__main__":
     prog_args.train_ratio = 0.8
     prog_args.test_ratio = 0.1
     prog_args.gpu = torch.cuda.is_available()
-    prog_args.cuda = "2"
 
     prog_args.logdir = os.path.join(os.getcwd(), "explain_log")
     if not (os.path.exists(prog_args.logdir)):
@@ -264,12 +263,6 @@ if __name__ == "__main__":
 
     print("Loaded model from {}".format(prog_args.ckptdir))
     print("input dim: ", input_dim, "; num classes: ", num_classes)
-
-    if prog_args.gpu:
-        os.environ["CUDA_VISIBLE_DEVICES"] = prog_args.cuda
-        print("CUDA", prog_args.cuda)
-    else:
-        print("Using CPU")
 
     i = 0
 
